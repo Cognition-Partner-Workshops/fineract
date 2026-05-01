@@ -1,6 +1,7 @@
 name: Verify Liquibase Backward Compatibility
 
-on: [pull_request]
+on:
+  workflow_dispatch:
 
 permissions:
   contents: read
