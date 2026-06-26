@@ -138,6 +138,16 @@ class FundsApiResourceIntegrationTest {
     }
 
     @Test
+    void putEmptyExternalIdWhenAlreadyNullReportsNoChange() throws Exception {
+        final long id = createFund("{\"name\":\"No Ext Fund\"}");
+
+        this.mockMvc
+                .perform(put("/v1/funds/" + id).with(auth()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"externalId\":\"\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.externalId").doesNotExist());
+    }
+
+    @Test
     void getMissingIdReturns404() throws Exception {
         this.mockMvc.perform(get("/v1/funds/999999").with(auth())).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.httpStatusCode").value("404"));

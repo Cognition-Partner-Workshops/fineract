@@ -21,6 +21,7 @@ package org.apache.fineract.fundservice.service;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.fineract.fundservice.data.FundRequest;
 import org.apache.fineract.fundservice.domain.Fund;
 import org.apache.fineract.fundservice.domain.FundRepository;
@@ -65,13 +66,19 @@ public class FundWriteServiceImpl implements FundWriteService {
         final Fund fund = this.fundRepository.findById(id).orElseThrow(() -> new FundNotFoundException(id));
 
         final Map<String, Object> changes = new LinkedHashMap<>();
-        if (request.getName() != null && !request.getName().equals(fund.getName())) {
-            changes.put("name", request.getName());
-            fund.setName(emptyToNull(request.getName()));
+        if (request.getName() != null) {
+            final String newName = emptyToNull(request.getName());
+            if (!Objects.equals(newName, fund.getName())) {
+                changes.put("name", request.getName());
+                fund.setName(newName);
+            }
         }
-        if (request.getExternalId() != null && !request.getExternalId().equals(fund.getExternalId())) {
-            changes.put("externalId", request.getExternalId());
-            fund.setExternalId(emptyToNull(request.getExternalId()));
+        if (request.getExternalId() != null) {
+            final String newExternalId = emptyToNull(request.getExternalId());
+            if (!Objects.equals(newExternalId, fund.getExternalId())) {
+                changes.put("externalId", request.getExternalId());
+                fund.setExternalId(newExternalId);
+            }
         }
 
         if (!changes.isEmpty()) {
