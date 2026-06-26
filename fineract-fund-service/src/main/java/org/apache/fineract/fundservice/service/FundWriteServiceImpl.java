@@ -69,14 +69,14 @@ public class FundWriteServiceImpl implements FundWriteService {
         if (request.isNameProvided()) {
             final String newName = emptyToNull(request.getName());
             if (!Objects.equals(newName, fund.getName())) {
-                changes.put("name", request.getName());
+                changes.put("name", newName);
                 fund.setName(newName);
             }
         }
         if (request.isExternalIdProvided()) {
             final String newExternalId = emptyToNull(request.getExternalId());
             if (!Objects.equals(newExternalId, fund.getExternalId())) {
-                changes.put("externalId", request.getExternalId());
+                changes.put("externalId", newExternalId);
                 fund.setExternalId(newExternalId);
             }
         }

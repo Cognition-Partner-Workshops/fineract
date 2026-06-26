@@ -151,6 +151,19 @@ class FundsApiResourceIntegrationTest {
     }
 
     @Test
+    void putEmptyExternalIdClearsItAndResponseMatchesPersistedValue() throws Exception {
+        final long id = createFund("{\"name\":\"Round Trip Fund\",\"externalId\":\"EXT-RT\"}");
+
+        this.mockMvc
+                .perform(put("/v1/funds/" + id).with(auth()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"externalId\":\"\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.externalId").doesNotExist());
+
+        this.mockMvc.perform(get("/v1/funds/" + id).with(auth())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.externalId").doesNotExist());
+    }
+
+    @Test
     void putEmptyExternalIdWhenAlreadyNullReportsNoChange() throws Exception {
         final long id = createFund("{\"name\":\"No Ext Fund\"}");
 
