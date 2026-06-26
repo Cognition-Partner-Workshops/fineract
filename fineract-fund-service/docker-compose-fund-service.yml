@@ -1,0 +1,87 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership. The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+# Database-per-service compose stack for the Fund carve-out.
+#
+#   fund-db      : dedicated PostgreSQL 16 database (fineract_fund) owned ONLY by fund-service.
+#   fund-service : the carved-out Fund microservice (port 8090); runs its own Liquibase on boot.
+#   gateway      : Spring Cloud Gateway (port 8080) routing the monolith-style external path
+#                  /fineract-provider/api/v1/funds/** -> fund-service http://fund-service:8090/v1/funds/**
+#
+# The build context is the repository root (..) so the in-image Gradle build can resolve
+# settings.gradle / buildSrc / the git-versioning plugin. Run from the repo root or this dir:
+#   docker compose -f fineract-fund-service/docker-compose-fund-service.yml up --build
+
+services:
+  fund-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: fineract_fund
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fineract_fund"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    ports:
+      - "5439:5432"
+
+  fund-service:
+    build:
+      context: ..
+      dockerfile: fineract-fund-service/Dockerfile
+    environment:
+      FUND_DB_HOST: fund-db
+      FUND_DB_PORT: "5432"
+      FUND_DB_NAME: fineract_fund
+      FUND_DB_USER: postgres
+      FUND_DB_PASSWORD: postgres
+      FUND_SECURITY_USERNAME: mifos
+      FUND_SECURITY_PASSWORD: password
+    ports:
+      - "8090:8090"
+    depends_on:
+      fund-db:
+        condition: service_healthy
+    healthcheck:
+      # eclipse-temurin (jammy) ships bash; use a /dev/tcp probe (no curl/wget in the jre image).
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8090'"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: fineract-gateway/Dockerfile
+    environment:
+      FUND_SERVICE_URI: http://fund-service:8090
+    ports:
+      - "8080:8080"
+    depends_on:
+      fund-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080'"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
