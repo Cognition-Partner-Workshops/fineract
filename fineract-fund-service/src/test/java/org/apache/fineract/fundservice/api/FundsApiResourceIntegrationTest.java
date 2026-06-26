@@ -186,11 +186,14 @@ class FundsApiResourceIntegrationTest {
 
     @Test
     void postDuplicateNameContainingExternalIdTokenReturns409WithNameCode() throws Exception {
-        createFund("{\"name\":\"external_id fund\"}");
+        // The name value itself contains both the column token and the externalId constraint name, which must NOT
+        // fool the duplicate classifier into reporting an externalId conflict.
+        final String trickyName = "external_id fund_externalid_org";
+        createFund("{\"name\":\"" + trickyName + "\"}");
 
         this.mockMvc
                 .perform(post("/v1/funds").with(auth()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"external_id fund\"}"))
+                        .content("{\"name\":\"" + trickyName + "\"}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("error.msg.fund.duplicate.name"));
     }
 
