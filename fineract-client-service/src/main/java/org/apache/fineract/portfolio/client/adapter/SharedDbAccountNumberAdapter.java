@@ -21,16 +21,16 @@ package org.apache.fineract.portfolio.client.adapter;
 import java.util.UUID;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.port.AccountNumberPort;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
  * Fallback account number generation adapter for standalone deployment. Uses the entity ID when available, or a UUID
- * for pre-persist clients. In the monolith WAR assembly, this bean is not registered because the full
- * AccountNumberGenerator from fineract-provider is available.
+ * for pre-persist clients. In the monolith WAR assembly, this bean is not registered because
+ * fineract.client-service.enabled defaults to false.
  */
 @Component
-@ConditionalOnMissingBean(name = "accountNumberGenerator")
+@ConditionalOnProperty(name = "fineract.client-service.enabled", havingValue = "true")
 public class SharedDbAccountNumberAdapter implements AccountNumberPort {
 
     @Override

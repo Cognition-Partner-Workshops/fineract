@@ -22,9 +22,11 @@ import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.event.business.domain.BusinessEvent;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
 import org.apache.fineract.portfolio.client.port.BusinessEventPort;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "fineract.client-service.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DelegatingBusinessEventAdapter implements BusinessEventPort {
 

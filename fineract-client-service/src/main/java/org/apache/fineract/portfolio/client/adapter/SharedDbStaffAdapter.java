@@ -23,9 +23,11 @@ import org.apache.fineract.organisation.staff.domain.Staff;
 import org.apache.fineract.organisation.staff.exception.StaffNotFoundException;
 import org.apache.fineract.portfolio.client.domain.ClientServiceStaffRepository;
 import org.apache.fineract.portfolio.client.port.StaffPort;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "fineract.client-service.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class SharedDbStaffAdapter implements StaffPort {
 

@@ -23,9 +23,11 @@ import lombok.RequiredArgsConstructor;
 import org.apache.fineract.portfolio.client.domain.ClientServiceGroupRepository;
 import org.apache.fineract.portfolio.client.port.GroupPort;
 import org.apache.fineract.portfolio.group.domain.Group;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "fineract.client-service.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class SharedDbGroupAdapter implements GroupPort {
 

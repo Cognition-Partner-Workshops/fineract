@@ -22,9 +22,11 @@ import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.codes.domain.CodeValue;
 import org.apache.fineract.infrastructure.codes.domain.CodeValueRepositoryWrapper;
 import org.apache.fineract.portfolio.client.port.CodeValuePort;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "fineract.client-service.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class SharedDbCodeValueAdapter implements CodeValuePort {
 

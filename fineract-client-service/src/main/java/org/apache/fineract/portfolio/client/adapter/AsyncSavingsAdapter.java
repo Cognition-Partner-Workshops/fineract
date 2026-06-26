@@ -26,6 +26,7 @@ import org.apache.fineract.portfolio.savings.domain.SavingsAccount;
 import org.apache.fineract.portfolio.savings.domain.SavingsAccountRepositoryWrapper;
 import org.apache.fineract.portfolio.savings.domain.SavingsProductRepository;
 import org.apache.fineract.portfolio.savings.exception.SavingsProductNotFoundException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -38,6 +39,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "fineract.client-service.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class AsyncSavingsAdapter implements SavingsPort {
 
@@ -75,7 +77,7 @@ public class AsyncSavingsAdapter implements SavingsPort {
     @Override
     public void validateSavingsAccountBelongsToClient(Long savingsAccountId, Long clientId) {
         SavingsAccount sa = savingsRepositoryWrapper.findOneWithNotFoundDetection(savingsAccountId);
-        if (!sa.getClient().getId().equals(clientId)) {
+        if (sa.getClient() == null || !sa.getClient().getId().equals(clientId)) {
             throw new IllegalArgumentException("Savings account " + savingsAccountId + " does not belong to client " + clientId);
         }
     }
