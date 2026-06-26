@@ -1,0 +1,55 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+// fineract-fund-service: standalone Spring Boot microservice (Fund bounded context carve-out).
+// Intentionally self-contained: it does NOT depend on any monolith fineract-* module and is
+// deliberately excluded from the root fineractJavaProjects / fineractPublishProjects allowlists.
+
+plugins {
+    id 'java'
+    // Versions are intentionally omitted: org.springframework.boot and io.spring.dependency-management
+    // are already on the build classpath (declared by the root project / buildSrc).
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+description = 'Fineract Fund Service (carve-out microservice)'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // error_prone_core satisfies the errorprone plugin applied to every project by the root build.gradle.
+    errorprone 'com.google.errorprone:error_prone_core:2.35.1'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
