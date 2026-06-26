@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.portfolio.client.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 
@@ -35,8 +36,13 @@ import org.springframework.context.annotation.Configuration;
  * </ul>
  * Auth/token pass-through is achieved by forwarding the Authorization header and Fineract-Platform-TenantId header
  * unchanged.
+ * <p>
+ * This config is only active when fineract.client-service.enabled=true (standalone mode). In monolith WAR mode, the
+ * existing component scan in fineract-provider handles bean registration, so this config is disabled to avoid duplicate
+ * bean definitions.
  */
 @Configuration
+@ConditionalOnProperty(name = "fineract.client-service.enabled", havingValue = "true", matchIfMissing = false)
 @ComponentScan(basePackages = { "org.apache.fineract.portfolio.client.adapter", "org.apache.fineract.portfolio.client.service",
         "org.apache.fineract.portfolio.client.api" })
 public class ClientServiceGatewayConfig {}

@@ -46,11 +46,14 @@ public class AsyncSavingsAdapter implements SavingsPort {
 
     @Override
     public void requestOpenSavingsAccount(Long clientId, Long savingsProductId, Long officeId) {
-        log.info("Publishing ClientSavingsRequested event: clientId={}, savingsProductId={}, officeId={}", clientId, savingsProductId,
-                officeId);
-        // In production, this would publish to a message broker (Kafka/ActiveMQ).
-        // For the initial extraction, we log and defer — the monolith still handles
-        // savings creation via the gateway route fallback during the migration period.
+        log.warn(
+                "Savings account creation deferred (async migration mode): clientId={}, savingsProductId={}, officeId={}. "
+                        + "In standalone mode, this event must be published to a message broker for the savings service to process.",
+                clientId, savingsProductId, officeId);
+        // TODO: Replace with actual event publishing to Kafka/ActiveMQ when moving to fully standalone deployment.
+        // During migration, the monolith gateway fallback still handles savings creation for requests
+        // routed through the monolith. Requests handled directly by this service will NOT create savings
+        // accounts until event publishing is implemented.
     }
 
     @Override

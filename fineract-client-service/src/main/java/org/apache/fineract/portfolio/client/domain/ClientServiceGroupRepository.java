@@ -18,7 +18,14 @@
  */
 package org.apache.fineract.portfolio.client.domain;
 
+import java.util.Collection;
 import org.apache.fineract.portfolio.group.domain.Group;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
-public interface ClientServiceGroupRepository extends JpaRepository<Group, Long> {}
+public interface ClientServiceGroupRepository extends JpaRepository<Group, Long> {
+
+    @Query("SELECT g FROM Group g JOIN g.clientMembers c WHERE c.id = :clientId")
+    Collection<Group> findByClientMembersId(@Param("clientId") Long clientId);
+}

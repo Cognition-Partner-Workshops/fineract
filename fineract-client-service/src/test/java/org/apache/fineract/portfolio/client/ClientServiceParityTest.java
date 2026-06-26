@@ -85,8 +85,7 @@ class ClientServiceParityTest {
     @Test
     @DisplayName("CommandPort defines processCommand")
     void commandPortContract() throws NoSuchMethodException {
-        assertThat(CommandPort.class.getMethod("processCommand", org.apache.fineract.commands.domain.CommandWrapper.class, String.class))
-                .isNotNull();
+        assertThat(CommandPort.class.getMethod("processCommand", org.apache.fineract.commands.domain.CommandWrapper.class)).isNotNull();
     }
 
     @Test

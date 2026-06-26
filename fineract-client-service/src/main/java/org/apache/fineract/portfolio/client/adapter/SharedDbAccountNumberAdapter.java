@@ -18,25 +18,26 @@
  */
 package org.apache.fineract.portfolio.client.adapter;
 
+import java.util.UUID;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.port.AccountNumberPort;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 /**
- * Account number generation adapter. For the extracted service, generates a simple sequential account number. In the
- * monolith assembly, this is overridden by the full AccountNumberGenerator bean from fineract-provider.
+ * Fallback account number generation adapter for standalone deployment. Uses the entity ID when available, or a UUID
+ * for pre-persist clients. In the monolith WAR assembly, this bean is not registered because the full
+ * AccountNumberGenerator from fineract-provider is available.
  */
 @Component
+@ConditionalOnMissingBean(name = "accountNumberGenerator")
 public class SharedDbAccountNumberAdapter implements AccountNumberPort {
 
     @Override
     public String generateClientAccountNumber(Client client) {
-        // Simple fallback: use the entity ID padded to 9 digits.
-        // In the monolith WAR assembly, the AccountNumberGenerator from
-        // fineract-provider overrides this via @Primary or conditional wiring.
         if (client.getId() != null) {
             return String.format("%09d", client.getId());
         }
-        return String.valueOf(System.currentTimeMillis() % 1000000000L);
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 9);
     }
 }

@@ -29,6 +29,11 @@ import org.springframework.stereotype.Component;
  * Local command adapter that delegates to the existing command processor. When running within the monolith WAR, this
  * uses the standard maker-checker flow. When running standalone, the command processor is simplified to direct
  * execution.
+ *
+ * <p>
+ * The CommandWrapper passed in must already contain the JSON body (via CommandWrapperBuilder.withJson()), since
+ * PortfolioCommandSourceWritePlatformServiceImpl.logCommandSource extracts JSON from wrapper.getJson().
+ * </p>
  */
 @Component
 @RequiredArgsConstructor
@@ -37,7 +42,7 @@ public class LocalCommandAdapter implements CommandPort {
     private final PortfolioCommandSourceWritePlatformService commandSourceWritePlatformService;
 
     @Override
-    public CommandProcessingResult processCommand(CommandWrapper wrapper, String json) {
+    public CommandProcessingResult processCommand(CommandWrapper wrapper) {
         return commandSourceWritePlatformService.logCommandSource(wrapper);
     }
 }

@@ -25,8 +25,13 @@ import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
  * Port for the command bus (PortfolioCommandSourceWritePlatformService). Seam decision: local proxy — the client
  * service runs its own command processor that delegates directly to the local service layer, bypassing the monolith's
  * maker-checker queue when running standalone.
+ *
+ * <p>
+ * Callers MUST embed the request JSON in the CommandWrapper via
+ * {@code new CommandWrapperBuilder()...withJson(json).build()} before invoking this port.
+ * </p>
  */
 public interface CommandPort {
 
-    CommandProcessingResult processCommand(CommandWrapper wrapper, String json);
+    CommandProcessingResult processCommand(CommandWrapper wrapper);
 }

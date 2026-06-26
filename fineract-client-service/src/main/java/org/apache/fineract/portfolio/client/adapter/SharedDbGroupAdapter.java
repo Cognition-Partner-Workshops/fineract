@@ -19,7 +19,6 @@
 package org.apache.fineract.portfolio.client.adapter;
 
 import java.util.Collection;
-import java.util.Collections;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.portfolio.client.domain.ClientServiceGroupRepository;
 import org.apache.fineract.portfolio.client.port.GroupPort;
@@ -39,6 +38,6 @@ public class SharedDbGroupAdapter implements GroupPort {
 
     @Override
     public Collection<Group> findByClientId(Long clientId) {
-        return Collections.emptyList();
+        return groupRepository.findByClientMembersId(clientId);
     }
 }

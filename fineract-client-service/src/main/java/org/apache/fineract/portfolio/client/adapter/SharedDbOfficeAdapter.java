@@ -19,8 +19,11 @@
 package org.apache.fineract.portfolio.client.adapter;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.organisation.office.domain.Office;
+import org.apache.fineract.organisation.office.domain.OfficeRepository;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
+import org.apache.fineract.organisation.office.exception.OfficeNotFoundException;
 import org.apache.fineract.portfolio.client.port.OfficePort;
 import org.springframework.stereotype.Component;
 
@@ -29,6 +32,7 @@ import org.springframework.stereotype.Component;
 public class SharedDbOfficeAdapter implements OfficePort {
 
     private final OfficeRepositoryWrapper officeRepositoryWrapper;
+    private final OfficeRepository officeRepository;
 
     @Override
     public Office findById(Long officeId) {
@@ -37,6 +41,7 @@ public class SharedDbOfficeAdapter implements OfficePort {
 
     @Override
     public Office findByExternalId(String externalId) {
-        return officeRepositoryWrapper.findOneWithNotFoundDetection(Long.valueOf(externalId));
+        return officeRepository.findByExternalId(new ExternalId(externalId))
+                .orElseThrow(() -> new OfficeNotFoundException(new ExternalId(externalId)));
     }
 }
