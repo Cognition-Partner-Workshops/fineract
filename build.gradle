@@ -49,7 +49,8 @@ buildscript {
                 'fineract-e2e-tests-core',
                 'fineract-e2e-tests-runner',
                 'fineract-progressive-loan',
-                'fineract-progressive-loan-embeddable-schedule-generator'
+                'fineract-progressive-loan-embeddable-schedule-generator',
+                'fineract-client-service'
             ].contains(it.name)
         }
         fineractPublishProjects = subprojects.findAll{

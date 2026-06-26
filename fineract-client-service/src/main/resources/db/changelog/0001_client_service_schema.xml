@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership. The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License. You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing,
+  software distributed under the License is distributed on an
+  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  KIND, either express or implied. See the License for the
+  specific language governing permissions and limitations
+  under the License.
+
+  Schema ownership: the client service is the sole writer to these tables.
+  During migration, the monolith retains read access via shared-DB.
+
+  FK handling for cross-context references:
+  - office_id -> m_office: soft reference (validated at application layer via OfficePort)
+  - staff_id -> m_staff: soft reference (validated via StaffPort)
+  - default_savings_product -> m_savings_product: soft reference (validated via SavingsPort)
+  - gender_cv_id, client_type_cv_id, etc. -> m_code_value: soft reference (validated via CodeValuePort)
+
+  Backfill strategy: on first deployment, no DDL changes needed since the tables
+  already exist in the shared DB. The changelog is idempotent (preconditions check
+  table existence). In the future separate-DB deployment, run this changelog to
+  recreate the schema, then backfill data from the monolith DB.
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet author="client-service" id="client-svc-001" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="m_client"/></not>
+        </preConditions>
+        <createTable tableName="m_client">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="account_no" type="VARCHAR(20)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="account_no_UNIQUE"/>
+            </column>
+            <column name="external_id" type="VARCHAR(100)">
+                <constraints unique="true"/>
+            </column>
+            <column defaultValueNumeric="300" name="status_enum" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="sub_status" type="INT"/>
+            <column defaultValueComputed="NULL" name="activation_date" type="date"/>
+            <column defaultValueComputed="NULL" name="office_joining_date" type="date"/>
+            <column name="office_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="transfer_to_office_id" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="staff_id" type="BIGINT"/>
+            <column name="firstname" type="VARCHAR(50)"/>
+            <column name="middlename" type="VARCHAR(50)"/>
+            <column name="lastname" type="VARCHAR(50)"/>
+            <column name="fullname" type="VARCHAR(100)"/>
+            <column name="display_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="mobile_no" type="VARCHAR(50)">
+                <constraints unique="true" uniqueConstraintName="mobile_no_UNIQUE"/>
+            </column>
+            <column defaultValueBoolean="false" name="is_staff" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="gender_cv_id" type="INT"/>
+            <column defaultValueComputed="NULL" name="date_of_birth" type="date"/>
+            <column defaultValueComputed="NULL" name="image_id" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="closure_reason_cv_id" type="INT"/>
+            <column defaultValueComputed="NULL" name="closedon_date" type="date"/>
+            <column defaultValueComputed="NULL" name="updated_by" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="updated_on" type="date"/>
+            <column defaultValueComputed="NULL" name="submittedon_date" type="date"/>
+            <column defaultValueComputed="NULL" name="submittedon_userid" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="activatedon_userid" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="closedon_userid" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="default_savings_product" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="default_savings_account" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="client_type_cv_id" type="INT"/>
+            <column defaultValueComputed="NULL" name="client_classification_cv_id" type="INT"/>
+            <column defaultValueComputed="NULL" name="reject_reason_cv_id" type="INT"/>
+            <column defaultValueComputed="NULL" name="rejectedon_date" type="date"/>
+            <column defaultValueComputed="NULL" name="rejectedon_userid" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="withdraw_reason_cv_id" type="INT"/>
+            <column defaultValueComputed="NULL" name="withdrawn_on_date" type="date"/>
+            <column defaultValueComputed="NULL" name="withdraw_on_userid" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="reactivated_on_date" type="date"/>
+            <column defaultValueComputed="NULL" name="reactivated_on_userid" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="legal_form_enum" type="INT"/>
+            <column defaultValueComputed="NULL" name="reopened_on_date" type="date"/>
+            <column defaultValueComputed="NULL" name="reopened_by_userid" type="BIGINT"/>
+            <column name="email_address" type="VARCHAR(150)"/>
+            <column defaultValueComputed="NULL" name="proposed_transfer_date" type="date"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="client-service" id="client-svc-002" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="m_client_address"/></not>
+        </preConditions>
+        <createTable tableName="m_client_address">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column defaultValueNumeric="0" name="client_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueNumeric="0" name="address_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueNumeric="0" name="address_type_id" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueBoolean="false" name="is_active" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="client-service" id="client-svc-003" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="m_client_charge"/></not>
+        </preConditions>
+        <createTable tableName="m_client_charge">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="client_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="charge_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_penalty" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+            <column name="charge_time_enum" type="SMALLINT">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="charge_due_date" type="date"/>
+            <column name="charge_calculation_enum" type="SMALLINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="amount" type="DECIMAL(19, 6)">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="amount_paid_derived" type="DECIMAL(19, 6)"/>
+            <column defaultValueComputed="NULL" name="amount_waived_derived" type="DECIMAL(19, 6)"/>
+            <column defaultValueComputed="NULL" name="amount_writtenoff_derived" type="DECIMAL(19, 6)"/>
+            <column name="amount_outstanding_derived" type="DECIMAL(19, 6)">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="is_paid_derived" type="boolean"/>
+            <column defaultValueComputed="NULL" name="waived" type="boolean"/>
+            <column defaultValueComputed="NULL" name="is_active" type="boolean"/>
+            <column defaultValueComputed="NULL" name="inactivated_on_date" type="date"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="client-service" id="client-svc-004" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="m_client_charge_paid_by"/></not>
+        </preConditions>
+        <createTable tableName="m_client_charge_paid_by">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="client_transaction_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="client_charge_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="amount" type="DECIMAL(19, 6)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="client-service" id="client-svc-005" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="m_client_identifier"/></not>
+        </preConditions>
+        <createTable tableName="m_client_identifier">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="client_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="document_type_id" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="document_key" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueNumeric="300" name="status" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="active" type="INT"/>
+            <column name="description" type="VARCHAR(500)"/>
+            <column defaultValueComputed="NULL" name="createdby_id" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="lastmodifiedby_id" type="BIGINT"/>
+            <column defaultValueComputed="NULL" name="created_date" type="datetime"/>
+            <column defaultValueComputed="NULL" name="lastmodified_date" type="datetime"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="client-service" id="client-svc-006" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="m_client_non_person"/></not>
+        </preConditions>
+        <createTable tableName="m_client_non_person">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="client_id" type="BIGINT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="constitution_cv_id" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="incorp_no" type="VARCHAR(50)"/>
+            <column defaultValueComputed="NULL" name="incorp_validity_till" type="datetime"/>
+            <column defaultValueComputed="NULL" name="main_business_line_cv_id" type="INT"/>
+            <column name="remarks" type="VARCHAR(150)"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="client-service" id="client-svc-007" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="m_client_transaction"/></not>
+        </preConditions>
+        <createTable tableName="m_client_transaction">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="client_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="office_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="currency_code" type="VARCHAR(3)">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="payment_detail_id" type="BIGINT"/>
+            <column name="is_reversed" type="boolean">
+                <constraints nullable="false"/>
+            </column>
+            <column name="external_id" type="VARCHAR(50)">
+                <constraints unique="true"/>
+            </column>
+            <column name="transaction_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="transaction_type_enum" type="SMALLINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="amount" type="DECIMAL(19, 6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_date" type="datetime">
+                <constraints nullable="false"/>
+            </column>
+            <column name="appuser_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="client-service" id="client-svc-008" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <not><tableExists tableName="m_client_transfer_details"/></not>
+        </preConditions>
+        <createTable tableName="m_client_transfer_details">
+            <column autoIncrement="true" name="id" type="BIGINT">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="client_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="from_office_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="to_office_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column defaultValueComputed="NULL" name="proposed_transfer_date" type="date"/>
+            <column name="transfer_type" type="TINYINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="submitted_on" type="date">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>
