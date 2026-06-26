@@ -39,9 +39,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Spring MVC REST controller mirroring the monolith JAX-RS Fund contract at {@code /v1/funds}. The raw JSON body is
- * validated by {@code FundApiJsonValidator} (rejecting unknown parameters and enforcing the length rules) before the
- * request reaches the read/write services.
+ * Spring MVC REST controller for the carved-out Fund service at {@code /v1/funds}. It mirrors the monolith's resource
+ * paths, validation rules and HTTP status/error codes, but deliberately uses self-contained response bodies (created id
+ * as {@code {"resourceId": <id>}} and a plain changes map on update) rather than the monolith's
+ * {@code CommandProcessingResult}/Maker-Checker envelope, which lives in the forbidden {@code org.apache.fineract.commands}
+ * package. The raw JSON body is validated by {@code FundApiJsonValidator} (rejecting unknown parameters and enforcing the
+ * length rules) before the request reaches the read/write services.
  */
 @RestController
 @RequestMapping(path = "/v1/funds", produces = MediaType.APPLICATION_JSON_VALUE)
