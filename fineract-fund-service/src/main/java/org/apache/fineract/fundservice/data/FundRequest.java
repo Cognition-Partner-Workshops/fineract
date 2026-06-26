@@ -30,4 +30,12 @@ public class FundRequest {
 
     private String name;
     private String externalId;
+
+    /**
+     * Whether the JSON key was present in the request body. Lets the update path distinguish an absent field (leave
+     * untouched) from one explicitly set to null/empty (clear it), mirroring the monolith's {@code parameterExists}
+     * semantics.
+     */
+    private boolean nameProvided;
+    private boolean externalIdProvided;
 }

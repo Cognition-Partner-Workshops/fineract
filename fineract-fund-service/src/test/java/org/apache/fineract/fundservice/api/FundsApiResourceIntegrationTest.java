@@ -138,6 +138,19 @@ class FundsApiResourceIntegrationTest {
     }
 
     @Test
+    void putNullExternalIdClearsIt() throws Exception {
+        final long id = createFund("{\"name\":\"Clearable Fund\",\"externalId\":\"EXT-CLR\"}");
+
+        this.mockMvc
+                .perform(put("/v1/funds/" + id).with(auth()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"externalId\":null}"))
+                .andExpect(status().isOk());
+
+        this.mockMvc.perform(get("/v1/funds/" + id).with(auth())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Clearable Fund")).andExpect(jsonPath("$.externalId").doesNotExist());
+    }
+
+    @Test
     void putEmptyExternalIdWhenAlreadyNullReportsNoChange() throws Exception {
         final long id = createFund("{\"name\":\"No Ext Fund\"}");
 

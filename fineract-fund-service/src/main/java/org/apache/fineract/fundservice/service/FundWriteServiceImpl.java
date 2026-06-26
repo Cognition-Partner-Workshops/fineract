@@ -66,14 +66,14 @@ public class FundWriteServiceImpl implements FundWriteService {
         final Fund fund = this.fundRepository.findById(id).orElseThrow(() -> new FundNotFoundException(id));
 
         final Map<String, Object> changes = new LinkedHashMap<>();
-        if (request.getName() != null) {
+        if (request.isNameProvided()) {
             final String newName = emptyToNull(request.getName());
             if (!Objects.equals(newName, fund.getName())) {
                 changes.put("name", request.getName());
                 fund.setName(newName);
             }
         }
-        if (request.getExternalId() != null) {
+        if (request.isExternalIdProvided()) {
             final String newExternalId = emptyToNull(request.getExternalId());
             if (!Objects.equals(newExternalId, fund.getExternalId())) {
                 changes.put("externalId", request.getExternalId());

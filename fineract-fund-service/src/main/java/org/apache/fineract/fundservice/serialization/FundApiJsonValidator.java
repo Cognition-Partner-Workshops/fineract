@@ -79,11 +79,13 @@ public class FundApiJsonValidator {
             final String name = extractString(root, NAME);
             validateName(name, errors);
             request.setName(name);
+            request.setNameProvided(true);
         }
         if (root.has(EXTERNAL_ID)) {
             final String externalId = extractString(root, EXTERNAL_ID);
             validateExternalId(externalId, errors);
             request.setExternalId(externalId);
+            request.setExternalIdProvided(true);
         }
 
         throwIfErrors(errors);
