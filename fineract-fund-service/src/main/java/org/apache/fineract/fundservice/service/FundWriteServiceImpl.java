@@ -87,11 +87,14 @@ public class FundWriteServiceImpl implements FundWriteService {
     private FundDuplicateException mapDuplicate(final DataIntegrityViolationException dve, final String name, final String externalId) {
         final Throwable mostSpecific = dve.getMostSpecificCause();
         final String message = mostSpecific.getMessage() == null ? "" : mostSpecific.getMessage().toLowerCase(Locale.ROOT);
-        if (message.contains(EXTERNAL_ID_CONSTRAINT) || message.contains("external_id")) {
+        // Match on the constraint name or the column-name token (e.g. PostgreSQL's "Key (external_id)=(...)"). Avoid
+        // bare substrings like "external_id"/"name" because the violated column *value* is embedded in the message and
+        // would otherwise cause misclassification (e.g. a fund name that contains the text "external_id").
+        if (message.contains(EXTERNAL_ID_CONSTRAINT) || message.contains("(external_id)=")) {
             return new FundDuplicateException("error.msg.fund.duplicate.externalId",
                     "A fund with external id '" + externalId + "' already exists", "externalId", externalId, dve);
         }
-        if (message.contains(NAME_CONSTRAINT) || message.contains("name")) {
+        if (message.contains(NAME_CONSTRAINT) || message.contains("(name)=")) {
             return new FundDuplicateException("error.msg.fund.duplicate.name", "A fund with name '" + name + "' already exists", "name",
                     name, dve);
         }

@@ -175,6 +175,16 @@ class FundsApiResourceIntegrationTest {
     }
 
     @Test
+    void postDuplicateNameContainingExternalIdTokenReturns409WithNameCode() throws Exception {
+        createFund("{\"name\":\"external_id fund\"}");
+
+        this.mockMvc
+                .perform(post("/v1/funds").with(auth()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"external_id fund\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("error.msg.fund.duplicate.name"));
+    }
+
+    @Test
     void postDuplicateExternalIdReturns409() throws Exception {
         createFund("{\"name\":\"Fund A\",\"externalId\":\"DUP-EXT\"}");
 
