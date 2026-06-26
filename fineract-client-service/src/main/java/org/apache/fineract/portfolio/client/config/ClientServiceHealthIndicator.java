@@ -20,9 +20,11 @@ package org.apache.fineract.portfolio.client.config;
 
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component("clientService")
+@ConditionalOnProperty(name = "fineract.client-service.enabled", havingValue = "true")
 public class ClientServiceHealthIndicator implements HealthIndicator {
 
     @Override
