@@ -16,29 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.fineract.fundservice.data;
+package org.apache.fineract.fundservice.exception;
 
-import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import java.util.List;
 
 /**
- * Write-model DTO for creating/updating a fund, mirroring the monolith {@code FundRequest} contract.
+ * Raised when an inbound request fails validation, mirroring the monolith {@code PlatformApiDataValidationException}
+ * ({@code validation.msg.validation.errors.exist}). Mapped to HTTP 400 by the web layer.
  */
-@Data
-@NoArgsConstructor
-public class FundRequest {
+public class FundValidationException extends RuntimeException {
 
-    private String name;
-    private String externalId;
+    private final List<ApiParameterError> errors;
 
-    /**
-     * Whether the JSON key was present in the request body. Lets the update path distinguish an absent field (leave
-     * untouched) from one explicitly set to null/empty (clear it), mirroring the monolith's {@code parameterExists}
-     * semantics.
-     */
-    @Schema(hidden = true)
-    private boolean nameProvided;
-    @Schema(hidden = true)
-    private boolean externalIdProvided;
+    public FundValidationException(final List<ApiParameterError> errors) {
+        this(errors, null);
+    }
+
+    public FundValidationException(final List<ApiParameterError> errors, final Throwable cause) {
+        super("Validation errors exist.", cause);
+        this.errors = List.copyOf(errors);
+    }
+
+    public List<ApiParameterError> getErrors() {
+        return this.errors;
+    }
 }
