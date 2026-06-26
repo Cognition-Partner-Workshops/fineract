@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.fundservice.data;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -36,6 +37,8 @@ public class FundRequest {
      * untouched) from one explicitly set to null/empty (clear it), mirroring the monolith's {@code parameterExists}
      * semantics.
      */
+    @Schema(hidden = true)
     private boolean nameProvided;
+    @Schema(hidden = true)
     private boolean externalIdProvided;
 }

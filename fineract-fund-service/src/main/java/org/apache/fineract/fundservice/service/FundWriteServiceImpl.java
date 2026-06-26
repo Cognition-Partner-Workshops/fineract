@@ -94,19 +94,33 @@ public class FundWriteServiceImpl implements FundWriteService {
     private FundDuplicateException mapDuplicate(final DataIntegrityViolationException dve, final String name, final String externalId) {
         final Throwable mostSpecific = dve.getMostSpecificCause();
         final String message = mostSpecific.getMessage() == null ? "" : mostSpecific.getMessage().toLowerCase(Locale.ROOT);
-        // Match the quoted constraint name (PostgreSQL always quotes it: ...unique constraint "fund_name_org") or the
-        // column-name token (e.g. "Key (external_id)=(...)"). Avoid bare substrings because the violated column *value*
-        // is embedded in the message and would otherwise cause misclassification (e.g. a name containing the text
-        // "external_id" or even "fund_externalid_org").
-        if (message.contains("\"" + EXTERNAL_ID_CONSTRAINT + "\"") || message.contains("(external_id)=")) {
-            return new FundDuplicateException("error.msg.fund.duplicate.externalId",
-                    "A fund with external id '" + externalId + "' already exists", "externalId", externalId, dve);
+        // Prefer the definitive quoted constraint name (PostgreSQL always quotes it: ...unique constraint "fund_name_org")
+        // and only fall back to the column-name token (e.g. "Key (external_id)=(...)") for other engines. The checks are
+        // ordered so the violated column *value* embedded in the message cannot win: a name value containing "(external_id)="
+        // must not be classified as an externalId conflict when the constraint is actually fund_name_org.
+        if (message.contains("\"" + EXTERNAL_ID_CONSTRAINT + "\"")) {
+            return duplicateExternalId(externalId, dve);
         }
-        if (message.contains("\"" + NAME_CONSTRAINT + "\"") || message.contains("(name)=")) {
-            return new FundDuplicateException("error.msg.fund.duplicate.name", "A fund with name '" + name + "' already exists", "name",
-                    name, dve);
+        if (message.contains("\"" + NAME_CONSTRAINT + "\"")) {
+            return duplicateName(name, dve);
+        }
+        if (message.contains("(external_id)=")) {
+            return duplicateExternalId(externalId, dve);
+        }
+        if (message.contains("(name)=")) {
+            return duplicateName(name, dve);
         }
         return new FundDuplicateException("error.msg.fund.duplicate", "A fund with the same unique value already exists", null, null, dve);
+    }
+
+    private static FundDuplicateException duplicateExternalId(final String externalId, final DataIntegrityViolationException dve) {
+        return new FundDuplicateException("error.msg.fund.duplicate.externalId",
+                "A fund with external id '" + externalId + "' already exists", "externalId", externalId, dve);
+    }
+
+    private static FundDuplicateException duplicateName(final String name, final DataIntegrityViolationException dve) {
+        return new FundDuplicateException("error.msg.fund.duplicate.name", "A fund with name '" + name + "' already exists", "name", name,
+                dve);
     }
 
     private static String emptyToNull(final String value) {

@@ -211,6 +211,19 @@ class FundsApiResourceIntegrationTest {
     }
 
     @Test
+    void postDuplicateNameContainingColumnTokenReturns409WithNameCode() throws Exception {
+        // The name value embeds the externalId column token "(external_id)=", which must not be misclassified as an
+        // externalId conflict; the violated constraint is fund_name_org.
+        final String trickyName = "(external_id)=x";
+        createFund("{\"name\":\"" + trickyName + "\"}");
+
+        this.mockMvc
+                .perform(post("/v1/funds").with(auth()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + trickyName + "\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.errorCode").value("error.msg.fund.duplicate.name"));
+    }
+
+    @Test
     void postDuplicateExternalIdReturns409() throws Exception {
         createFund("{\"name\":\"Fund A\",\"externalId\":\"DUP-EXT\"}");
 
