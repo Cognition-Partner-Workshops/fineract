@@ -100,7 +100,7 @@ public class FundApiJsonValidator {
             node = this.objectMapper.readTree(json);
         } catch (final com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new FundValidationException(List.of(ApiParameterError.parameterError("error.msg.fund.invalid.json",
-                    "The request body is not valid JSON.", null, null)));
+                    "The request body is not valid JSON.", null, null)), e);
         }
         if (node == null || !node.isObject()) {
             throw new FundValidationException(List.of(ApiParameterError.parameterError("error.msg.fund.invalid.json",

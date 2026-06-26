@@ -28,8 +28,9 @@ public class FundDuplicateException extends RuntimeException {
     private final String parameterName;
     private final Object value;
 
-    public FundDuplicateException(final String code, final String message, final String parameterName, final Object value) {
-        super(message);
+    public FundDuplicateException(final String code, final String message, final String parameterName, final Object value,
+            final Throwable cause) {
+        super(message, cause);
         this.code = code;
         this.parameterName = parameterName;
         this.value = value;

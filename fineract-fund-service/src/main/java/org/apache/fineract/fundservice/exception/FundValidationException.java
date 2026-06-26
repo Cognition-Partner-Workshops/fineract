@@ -29,7 +29,11 @@ public class FundValidationException extends RuntimeException {
     private final List<ApiParameterError> errors;
 
     public FundValidationException(final List<ApiParameterError> errors) {
-        super("Validation errors exist.");
+        this(errors, null);
+    }
+
+    public FundValidationException(final List<ApiParameterError> errors, final Throwable cause) {
+        super("Validation errors exist.", cause);
         this.errors = List.copyOf(errors);
     }
 

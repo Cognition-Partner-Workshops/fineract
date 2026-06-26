@@ -89,13 +89,13 @@ public class FundWriteServiceImpl implements FundWriteService {
         final String message = mostSpecific.getMessage() == null ? "" : mostSpecific.getMessage().toLowerCase(Locale.ROOT);
         if (message.contains(EXTERNAL_ID_CONSTRAINT) || message.contains("external_id")) {
             return new FundDuplicateException("error.msg.fund.duplicate.externalId",
-                    "A fund with external id '" + externalId + "' already exists", "externalId", externalId);
+                    "A fund with external id '" + externalId + "' already exists", "externalId", externalId, dve);
         }
         if (message.contains(NAME_CONSTRAINT) || message.contains("name")) {
             return new FundDuplicateException("error.msg.fund.duplicate.name", "A fund with name '" + name + "' already exists", "name",
-                    name);
+                    name, dve);
         }
-        return new FundDuplicateException("error.msg.fund.duplicate", "A fund with the same unique value already exists", null, null);
+        return new FundDuplicateException("error.msg.fund.duplicate", "A fund with the same unique value already exists", null, null, dve);
     }
 
     private static String emptyToNull(final String value) {
