@@ -20,8 +20,21 @@
 
 set -e
 
+SECRET_NAME=fineract-tenants-db-secret
+
+if ! kubectl get secret "$SECRET_NAME" >/dev/null 2>&1; then
+    printf 'Kubernetes Secret %s is required. Create it with non-empty username and password keys before starting Fineract.\n' "$SECRET_NAME" >&2
+    exit 1
+fi
+
+for key in username password; do
+    if [ -z "$(kubectl get secret "$SECRET_NAME" -o "jsonpath={.data.${key}}" 2>/dev/null)" ]; then
+        printf 'Kubernetes Secret %s must contain a non-empty %s key.\n' "$SECRET_NAME" "$key" >&2
+        exit 1
+    fi
+done
+
 echo "Setting up Fineract service configuration..."
-kubectl create secret generic fineract-tenants-db-secret --from-literal=username=root --from-literal=password=$(head /dev/urandom | LC_CTYPE=C tr -dc A-Za-z0-9 | head -c 16) 2>/dev/null || echo "Secret already exists, skipping..."
 kubectl apply -f fineractmysql-configmap.yml
 
 echo
@@ -55,14 +68,12 @@ echo "Fineract Kubernetes deployment is ready!"
 echo "============================================"
 echo
 echo "To access the Mifos web application:"
-echo "  minikube service mifos-community"
+echo "  kubectl port-forward service/mifos-community 9090:9090"
 echo
 echo "To access the Fineract API directly:"
-echo "  minikube service fineract-server --url --https"
+echo "  kubectl port-forward service/fineract-server 8443:8443"
 echo
-echo "Default credentials:"
-echo "  Username: mifos"
-echo "  Password: password"
+echo "Change the seeded admin password on first login"
 echo
 echo "To check pod status:"
 echo "  kubectl get pods"

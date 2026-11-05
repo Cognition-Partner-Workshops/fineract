@@ -37,6 +37,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.UriInfo;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,7 @@ import org.apache.fineract.portfolio.self.account.data.SelfAccountTransferData;
 import org.apache.fineract.portfolio.self.account.data.SelfAccountTransferDataValidator;
 import org.apache.fineract.portfolio.self.account.exception.BeneficiaryTransferLimitExceededException;
 import org.apache.fineract.portfolio.self.account.exception.DailyTPTTransactionAmountLimitExceededException;
+import org.apache.fineract.portfolio.self.account.exception.SelfTPTTransferDateMustBeBusinessDateException;
 import org.apache.fineract.portfolio.self.account.service.SelfAccountTransferReadService;
 import org.apache.fineract.portfolio.self.account.service.SelfBeneficiariesTPTReadPlatformService;
 import org.apache.fineract.portfolio.self.config.SelfServiceModuleIsEnabledCondition;
@@ -115,6 +117,10 @@ public class SelfAccountTransferApiResource {
         final String apiRequestBodyAsJson = toApiJsonSerializer.serialize(accountTransferRequest);
         Map<String, Object> params = this.dataValidator.validateCreate(type, apiRequestBodyAsJson);
         if (type.equals("tpt")) {
+            LocalDate transactionDate = (LocalDate) params.get("transactionDate");
+            if (!DateUtils.getBusinessLocalDate().equals(transactionDate)) {
+                throw new SelfTPTTransferDateMustBeBusinessDateException();
+            }
             checkForLimits(params);
         }
         return this.accountTransfersApiResource.create(accountTransferRequest);
