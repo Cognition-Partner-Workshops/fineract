@@ -53,7 +53,7 @@ public class DepositAccountPreMatureCalculationPlatformServiceImpl implements De
     private final ConfigurationDomainService configurationDomainService;
     private final PaymentTypeReadPlatformService paymentTypeReadPlatformService;
 
-    @Transactional
+    @Transactional(readOnly = true)
     @Override
     public DepositAccountData calculatePreMatureAmount(final Long accountId, final JsonQuery query,
             final DepositAccountType depositAccountType) {

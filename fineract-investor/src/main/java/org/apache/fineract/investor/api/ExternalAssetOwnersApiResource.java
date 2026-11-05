@@ -49,7 +49,7 @@ import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.exception.UnrecognizedQueryParamException;
 import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSerializer;
 import org.apache.fineract.infrastructure.core.service.PagedRequest;
-import org.apache.fineract.infrastructure.security.service.PlatformUserRightsContext;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.investor.api.search.ExternalAssetOwnersSearchApiDelegate;
 import org.apache.fineract.investor.config.InvestorModuleIsEnabledCondition;
 import org.apache.fineract.investor.data.ExternalOwnerJournalEntryData;
@@ -59,6 +59,7 @@ import org.apache.fineract.investor.data.request.ExternalAssetOwnerRequest;
 import org.apache.fineract.investor.service.ExternalAssetOwnersReadService;
 import org.apache.fineract.investor.service.search.domain.ExternalAssetOwnerSearchRequest;
 import org.apache.fineract.portfolio.loanaccount.service.LoanReadPlatformServiceCommon;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
@@ -70,7 +71,7 @@ import org.springframework.stereotype.Component;
 @Conditional(InvestorModuleIsEnabledCondition.class)
 public class ExternalAssetOwnersApiResource {
 
-    private final PlatformUserRightsContext platformUserRightsContext;
+    private final PlatformSecurityContext platformUserRightsContext;
     private final ExternalAssetOwnersReadService externalAssetOwnersReadService;
     private final DefaultToApiJsonSerializer<String> postApiJsonSerializerService;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
@@ -78,6 +79,9 @@ public class ExternalAssetOwnersApiResource {
     private final ExternalAssetOwnersSearchApiDelegate delegate;
 
     private static final String COMMAND_PARAM = "command";
+    private static final String EXTERNAL_ASSET_OWNER_RESOURCE_NAME = "EXTERNAL_ASSET_OWNER";
+    private static final String EXTERNAL_ASSET_OWNER_TRANSFER_RESOURCE_NAME = "EXTERNAL_ASSET_OWNER_TRANSFER";
+    private static final String JOURNAL_ENTRY_RESOURCE_NAME = "JOURNALENTRY";
 
     private static final CommandHandlerRegistry<String, Long, String, CommandWrapper> COMMAND_HANDLER_REGISTRY = new CommandHandlerRegistry<>(
             Map.of(CANCEL_COMMAND_VALUE, (id, json) -> new CommandWrapperBuilder().cancelTransactionByIdToExternalAssetOwner(id).build(),
@@ -163,7 +167,7 @@ public class ExternalAssetOwnersApiResource {
             @QueryParam("loanExternalId") @Parameter(description = "loanExternalId") final String loanExternalId,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
-        platformUserRightsContext.isAuthenticated();
+        platformUserRightsContext.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_TRANSFER_RESOURCE_NAME);
         return externalAssetOwnersReadService.retrieveTransferData(loanId, loanExternalId, transferExternalId, offset, limit);
     }
 
@@ -176,7 +180,7 @@ public class ExternalAssetOwnersApiResource {
             @QueryParam("transferExternalId") @Parameter(description = "transferExternalId") final String transferExternalId,
             @QueryParam("loanId") @Parameter(description = "loanId") final Long loanId,
             @QueryParam("loanExternalId") @Parameter(description = "loanExternalId") final String loanExternalId) {
-        platformUserRightsContext.isAuthenticated();
+        platformUserRightsContext.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_TRANSFER_RESOURCE_NAME);
         return externalAssetOwnersReadService.retrieveActiveTransferData(loanId, loanExternalId, transferExternalId);
     }
 
@@ -189,7 +193,9 @@ public class ExternalAssetOwnersApiResource {
             @PathParam("transferId") @Parameter(description = "transferId") final Long transferId,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
-        platformUserRightsContext.isAuthenticated();
+        final AppUser authenticatedUser = platformUserRightsContext.authenticatedUser();
+        authenticatedUser.validateHasReadPermission(EXTERNAL_ASSET_OWNER_TRANSFER_RESOURCE_NAME);
+        authenticatedUser.validateHasReadPermission(JOURNAL_ENTRY_RESOURCE_NAME);
         return externalAssetOwnersReadService.retrieveJournalEntriesOfTransfer(transferId, offset, limit);
     }
 
@@ -202,7 +208,9 @@ public class ExternalAssetOwnersApiResource {
             @PathParam("ownerExternalId") @Parameter(description = "ownerExternalId") final String ownerExternalId,
             @QueryParam("offset") @Parameter(description = "offset") final Integer offset,
             @QueryParam("limit") @Parameter(description = "limit") final Integer limit) {
-        platformUserRightsContext.isAuthenticated();
+        final AppUser authenticatedUser = platformUserRightsContext.authenticatedUser();
+        authenticatedUser.validateHasReadPermission(EXTERNAL_ASSET_OWNER_RESOURCE_NAME);
+        authenticatedUser.validateHasReadPermission(JOURNAL_ENTRY_RESOURCE_NAME);
         return externalAssetOwnersReadService.retrieveJournalEntriesOfOwner(ownerExternalId, offset, limit);
     }
 
@@ -212,7 +220,7 @@ public class ExternalAssetOwnersApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     @Operation(summary = "Search External Asset Owner Transfers by text or date ranges to settlement or effective dates")
     public Page<ExternalTransferData> searchInvestorData(@Parameter PagedRequest<ExternalAssetOwnerSearchRequest> request) {
-        platformUserRightsContext.isAuthenticated();
+        platformUserRightsContext.authenticatedUser().validateHasReadPermission(EXTERNAL_ASSET_OWNER_TRANSFER_RESOURCE_NAME);
         return delegate.searchInvestorData(request);
     }
 }

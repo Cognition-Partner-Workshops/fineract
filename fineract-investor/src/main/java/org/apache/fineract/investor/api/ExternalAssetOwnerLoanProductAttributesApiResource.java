@@ -41,7 +41,7 @@ import org.apache.fineract.commands.service.CommandWrapperBuilder;
 import org.apache.fineract.commands.service.PortfolioCommandSourceWritePlatformService;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.service.Page;
-import org.apache.fineract.infrastructure.security.service.PlatformUserRightsContext;
+import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.investor.config.InvestorModuleIsEnabledCondition;
 import org.apache.fineract.investor.data.ExternalTransferLoanProductAttributesData;
 import org.apache.fineract.investor.service.ExternalAssetOwnerLoanProductAttributesReadService;
@@ -55,7 +55,7 @@ import org.springframework.stereotype.Component;
 @Conditional(InvestorModuleIsEnabledCondition.class)
 public class ExternalAssetOwnerLoanProductAttributesApiResource {
 
-    private final PlatformUserRightsContext platformUserRightsContext;
+    private final PlatformSecurityContext platformUserRightsContext;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
     private final ExternalAssetOwnerLoanProductAttributesReadService externalAssetOwnerLoanProductAttributesReadService;
 
@@ -85,7 +85,7 @@ public class ExternalAssetOwnerLoanProductAttributesApiResource {
     public Page<ExternalTransferLoanProductAttributesData> getExternalAssetOwnerLoanProductAttributes(@Context final UriInfo uriInfo,
             @PathParam("loanProductId") @Parameter(description = "loanProductId") final Long loanProductId,
             @QueryParam("attributeKey") @Parameter(description = "attributeKey") final String attributeKey) {
-        platformUserRightsContext.isAuthenticated();
+        platformUserRightsContext.authenticatedUser().validateHasReadPermission("EXTERNAL_ASSET_OWNER_LOAN_PRODUCT_ATTRIBUTE");
 
         return externalAssetOwnerLoanProductAttributesReadService.retrieveAllLoanProductAttributesByLoanProductId(loanProductId,
                 attributeKey);
