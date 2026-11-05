@@ -57,6 +57,7 @@ import org.apache.fineract.integrationtests.common.funds.FundsResourceHandler;
 import org.apache.fineract.integrationtests.common.loans.LoanProductTestBuilder;
 import org.apache.fineract.integrationtests.common.loans.LoanTransactionHelper;
 import org.apache.fineract.integrationtests.common.organisation.StaffHelper;
+import org.apache.fineract.integrationtests.useradministration.roles.RolesHelper;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -96,6 +97,8 @@ public class LoanImportHandlerTest {
         OfficeHelper officeHelper = new OfficeHelper(requestSpec, responseSpec);
         Integer outcome_office_creation = officeHelper.createOffice("02 May 2000");
         Assertions.assertNotNull(outcome_office_creation, "Could not create office");
+        Integer outOfScopeOfficeId = officeHelper.createOffice("02 May 2000");
+        Assertions.assertNotNull(outOfScopeOfficeId, "Could not create second office");
 
         OfficeDomain office = officeHelper.retrieveOfficeByID(outcome_office_creation);
         Assertions.assertNotNull(office, "Could not retrieve created office");
@@ -130,6 +133,9 @@ public class LoanImportHandlerTest {
         collateralHashMap.put("quantity", "1");
         collaterals.add(collateralHashMap);
 
+        ImportedClient sameOfficeImportClient = createImportedClient(outcome_office_creation, collateralId);
+        ImportedClient outOfScopeImportClient = createImportedClient(outOfScopeOfficeId, collateralId);
+
         final String disbursementChargeJsonString = ChargesHelper.getLoanDisbursementJSON();
 
         final Integer disbursementChargeId = ChargesHelper.createCharges(this.requestSpec, this.responseSpec, disbursementChargeJsonString);
@@ -148,6 +154,34 @@ public class LoanImportHandlerTest {
 
         Map<String, Object> staffMap = StaffHelper.getStaff(requestSpec, responseSpec, outcome_staff_creation);
         Assertions.assertNotNull(staffMap, "Could not retrieve created staff");
+
+        Integer scopedRoleId = RolesHelper.createRole(requestSpec, responseSpec);
+        RolesHelper.addPermissionsToRole(requestSpec, responseSpec, scopedRoleId,
+                Map.of("ALL_FUNCTIONS_READ", true, "CREATE_LOAN", true, "APPROVE_LOAN", true, "DISBURSE_LOAN", true, "REPAYMENT_LOAN", true,
+                        "CREATE_DOCUMENT", true, "READ_DOCUMENT", true, "UPDATE_DOCUMENT", true));
+        HashMap<String, Object> scopedStaffRequest = new Gson().fromJson(StaffHelper.createStaffAsJSON(), HashMap.class);
+        scopedStaffRequest.put("officeId", outcome_office_creation);
+        Integer scopedStaffId = (Integer) StaffHelper.createStaffWithJson(requestSpec, responseSpec, new Gson().toJson(scopedStaffRequest))
+                .get("resourceId");
+        Map<String, Object> scopedStaff = StaffHelper.getStaff(requestSpec, responseSpec, scopedStaffId);
+        String scopedUsername = Utils.uniqueRandomStringGenerator("loan_import_", 8);
+        String scopedPassword = "A1b2c3d4e5f$";
+        HashMap<String, Object> scopedUserRequest = new HashMap<>();
+        scopedUserRequest.put("username", scopedUsername);
+        scopedUserRequest.put("firstname", "Loan");
+        scopedUserRequest.put("lastname", "Importer");
+        scopedUserRequest.put("email", scopedUsername + "@example.com");
+        scopedUserRequest.put("officeId", String.valueOf(outcome_office_creation));
+        scopedUserRequest.put("staffId", String.valueOf(scopedStaffId));
+        scopedUserRequest.put("roles", List.of(String.valueOf(scopedRoleId)));
+        scopedUserRequest.put("sendPasswordToEmail", false);
+        scopedUserRequest.put("password", scopedPassword);
+        scopedUserRequest.put("repeatPassword", scopedPassword);
+        io.restassured.RestAssured.given().spec(requestSpec).contentType(ContentType.JSON).body(new Gson().toJson(scopedUserRequest))
+                .post("/fineract-provider/api/v1/users?" + Utils.TENANT_IDENTIFIER).then().spec(responseSpec);
+        RequestSpecification scopedRequestSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build().header("Authorization",
+                "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(scopedUsername, scopedPassword));
+        LoanTransactionHelper scopedLoanTransactionHelper = new LoanTransactionHelper(scopedRequestSpec, responseSpec);
 
         LoanTransactionHelper ltHelper = new LoanTransactionHelper(requestSpec, responseSpec);
         LoanProductTestBuilder loanProductTestBuilder = new LoanProductTestBuilder();
@@ -257,5 +291,108 @@ public class LoanImportHandlerTest {
 
         Assertions.assertEquals("Imported", row.getCell(LoanConstants.STATUS_COL).getStringCellValue());
         outputworkbook.close();
+
+        firstLoanRow.getCell(LoanConstants.CLIENT_NAME_COL).setCellValue(sameOfficeImportClient.displayName());
+        firstLoanRow.getCell(LoanConstants.CLIENT_EXTERNAL_ID).setCellValue(sameOfficeImportClient.externalId);
+        firstLoanRow.getCell(LoanConstants.LOAN_OFFICER_NAME_COL).setCellValue((String) scopedStaff.get("displayName"));
+        firstLoanRow.getCell(LoanConstants.LOAN_COLLATERAL_ID).setCellValue(sameOfficeImportClient.clientCollateralId.toString());
+        Assertions.assertEquals(TemplatePopulateImportConstants.STATUS_CELL_IMPORTED,
+                importAndGetStatus(scopedLoanTransactionHelper, workbook));
+
+        firstLoanRow.getCell(LoanConstants.CLIENT_NAME_COL).setCellValue(outOfScopeImportClient.displayName());
+        firstLoanRow.getCell(LoanConstants.CLIENT_EXTERNAL_ID).setCellValue(outOfScopeImportClient.externalId);
+        firstLoanRow.getCell(LoanConstants.LOAN_COLLATERAL_ID).setCellValue(outOfScopeImportClient.clientCollateralId.toString());
+        Assertions.assertEquals(TemplatePopulateImportConstants.STATUS_CREATION_FAILED,
+                importAndGetStatus(scopedLoanTransactionHelper, workbook));
+    }
+
+    private ImportedClient createImportedClient(final Integer officeId, final Integer collateralProductId) {
+        final String firstName = Utils.randomStringGenerator("Import_Client_", 5);
+        final String lastName = Utils.randomStringGenerator("Import_Last_", 4);
+        final String externalId = UUID.randomUUID().toString();
+        final HashMap<String, Object> clientMap = new HashMap<>();
+        clientMap.put("officeId", officeId.toString());
+        clientMap.put("firstname", firstName);
+        clientMap.put("lastname", lastName);
+        clientMap.put("externalId", externalId);
+        clientMap.put("dateFormat", DATE_FORMAT);
+        clientMap.put("legalFormId", 1);
+        clientMap.put("locale", "en");
+        clientMap.put("active", "true");
+        clientMap.put("activationDate", "04 March 2011");
+        final Integer clientId = Utils.performServerPost(requestSpec, responseSpec, CREATE_CLIENT_URL, new Gson().toJson(clientMap),
+                "clientId");
+        Assertions.assertNotNull(clientId, "Could not create import client");
+        final Integer clientCollateralId = CollateralManagementHelper.createClientCollateral(this.requestSpec, this.responseSpec,
+                String.valueOf(clientId), collateralProductId);
+        Assertions.assertNotNull(clientCollateralId, "Could not create import client collateral");
+        return new ImportedClient(clientId, firstName, lastName, externalId, clientCollateralId);
+    }
+
+    private String importAndGetStatus(final LoanTransactionHelper helper, final Workbook workbook)
+            throws IOException, InterruptedException {
+        final File directory = new File(
+                new File("").getAbsolutePath() + File.separator + "src" + File.separator + "integrationTest" + File.separator + "resources"
+                        + File.separator + "bulkimport" + File.separator + "importhandler" + File.separator + "loan");
+        if (!directory.exists()) {
+            directory.mkdirs();
+        }
+        final File file = new File(directory, "Loan.xls");
+        try (OutputStream outputStream = new FileOutputStream(file)) {
+            workbook.write(outputStream);
+        }
+        final String importDocumentId = helper.importLoanTemplate(file);
+        file.delete();
+        Assertions.assertNotNull(importDocumentId);
+        String location = null;
+        for (int attempt = 0; attempt < 12; attempt++) {
+            Thread.sleep(5000);
+            final String outputLocation = helper.getOutputTemplateLocation(importDocumentId);
+            if (!outputLocation.equals(location)) {
+                location = outputLocation;
+                LOG.info("Import document {} output location: {}", importDocumentId, location);
+            }
+            if (location.contains(File.separator + "IMPORT" + File.separator)) {
+                continue;
+            }
+            final File outputFile = new File(location);
+            if (outputFile.exists()) {
+                try (FileInputStream fileInputStream = new FileInputStream(outputFile);
+                        Workbook outputWorkbook = new HSSFWorkbook(fileInputStream)) {
+                    final Row outputRow = outputWorkbook.getSheet(TemplatePopulateImportConstants.LOANS_SHEET_NAME).getRow(1);
+                    if (outputRow != null && outputRow.getCell(LoanConstants.STATUS_COL) != null) {
+                        final String status = outputRow.getCell(LoanConstants.STATUS_COL).getStringCellValue();
+                        if (!status.isBlank()) {
+                            LOG.info("Import document {} completed with status {}", importDocumentId, status);
+                            return status;
+                        }
+                    }
+                }
+            }
+        }
+        LOG.warn("Import document {} did not produce a status at {}", importDocumentId, location);
+        return "<missing import status>";
+    }
+
+    private static final class ImportedClient {
+
+        private final Integer id;
+        private final String firstName;
+        private final String lastName;
+        private final String externalId;
+        private final Integer clientCollateralId;
+
+        private ImportedClient(final Integer id, final String firstName, final String lastName, final String externalId,
+                final Integer clientCollateralId) {
+            this.id = id;
+            this.firstName = firstName;
+            this.lastName = lastName;
+            this.externalId = externalId;
+            this.clientCollateralId = clientCollateralId;
+        }
+
+        private String displayName() {
+            return firstName + " " + lastName + "(" + id + ")";
+        }
     }
 }
