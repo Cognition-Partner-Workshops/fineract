@@ -119,6 +119,26 @@ class SelfServiceRegistrationTokenSecurityTest {
     }
 
     @Test
+    void legacyRegistrationWithoutExpiryCannotCreateUser() throws Exception {
+        final SelfServiceRegistration registration = registration(VALID_TOKEN);
+        final Field expiresAt;
+        try {
+            expiresAt = SelfServiceRegistration.class.getDeclaredField("authenticationTokenExpiresAt");
+        } catch (NoSuchFieldException exception) {
+            org.junit.jupiter.api.Assumptions.assumeTrue(false, "Token expiry is not present on the main baseline");
+            return;
+        }
+        expiresAt.setAccessible(true);
+        expiresAt.set(registration, null);
+        when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(registration));
+
+        assertThrows(SelfServiceRegistrationNotFoundException.class, () -> underTest.createUser(request(VALID_TOKEN)));
+
+        assertNull(registration.getAuthenticationToken());
+        verify(repository).saveAndFlush(registration);
+    }
+
+    @Test
     void validAuthorizationTokenCreatesSelfServiceUser() {
         final SelfServiceRegistration registration = registration(VALID_TOKEN);
         when(repository.findById(REQUEST_ID)).thenReturn(Optional.of(registration));

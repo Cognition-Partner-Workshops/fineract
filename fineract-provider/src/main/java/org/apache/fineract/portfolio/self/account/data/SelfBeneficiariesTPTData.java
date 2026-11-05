@@ -57,10 +57,17 @@ public class SelfBeneficiariesTPTData {
         this.id = id;
         this.name = name;
         this.officeName = officeName;
-        this.clientName = clientName;
+        this.clientName = maskClientName(clientName);
         this.accountType = accountType;
         this.accountNumber = accountNumber;
         this.transferLimit = transferLimit;
+    }
+
+    private static String maskClientName(final String clientName) {
+        if (clientName == null || clientName.isBlank()) {
+            return clientName;
+        }
+        return clientName.substring(0, 1) + "***";
     }
 
 }

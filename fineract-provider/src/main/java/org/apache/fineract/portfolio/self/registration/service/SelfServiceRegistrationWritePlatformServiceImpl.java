@@ -23,6 +23,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 import jakarta.persistence.PersistenceException;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -257,7 +259,8 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
                 this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
                 throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
             }
-            if (!selfServiceRegistration.getAuthenticationToken().equals(authenticationToken)) {
+            if (!MessageDigest.isEqual(selfServiceRegistration.getAuthenticationToken().getBytes(StandardCharsets.UTF_8),
+                    authenticationToken.getBytes(StandardCharsets.UTF_8))) {
                 selfServiceRegistration.recordFailedAuthenticationTokenAttempt();
                 this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
                 throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
