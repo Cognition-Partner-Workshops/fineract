@@ -18,6 +18,10 @@
  */
 // TODO: this is work in progress, please follow FINERACT-1171
 buildscript {
+    configurations.classpath {
+        resolutionStrategy.force 'com.mycila:license-maven-plugin:4.1'
+    }
+
     ext {
         jacocoVersion = '0.8.14'
         retrofitVersion = '2.9.0'
@@ -83,6 +87,7 @@ buildscript {
     }
 
     dependencies {
+        classpath 'org.apache.maven:maven-plugin-api:3.9.11'
         classpath "org.apache.groovy:groovy-sql:${GroovySystem.version}"
         classpath 'com.bmuschko:gradle-cargo-plugin:2.9.0'
         classpath 'org.eclipse.persistence:eclipselink:5.0.2'
@@ -171,11 +176,6 @@ allprojects  {
         }
     }
 
-    pluginManager.withPlugin('java') {
-        configurations.named('implementation') {
-            exclude group: 'commons-logging', module: 'commons-logging'
-        }
-    }
     pluginManager.withPlugin('java-library') {
         configurations.named('api') {
             canBeResolved = true
@@ -240,6 +240,13 @@ allprojects  {
     // https://github.com/hierynomus/license-gradle-plugin
     license {
         header rootProject.file("$rootDir/APACHE_LICENSETEXT.md")
+        mapping([
+            fx: 'JAVADOC_STYLE',
+            groovy: 'JAVADOC_STYLE',
+            java: 'JAVADOC_STYLE',
+            kt: 'JAVADOC_STYLE',
+            scala: 'JAVADOC_STYLE'
+        ])
         excludes([
             "**/gradlew*",
             "**/git.properties",

@@ -18,6 +18,7 @@
  */
 
 dependencies {
+    implementation 'org.springframework.boot:spring-boot-jackson2'
     implementation 'org.springframework.boot:spring-boot-starter-liquibase'
     implementation(
             'org.springframework.boot:spring-boot-starter',
