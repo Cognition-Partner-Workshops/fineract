@@ -32,8 +32,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.ApiParameterError;
@@ -41,6 +39,7 @@ import org.apache.fineract.infrastructure.core.data.DataValidatorBuilder;
 import org.apache.fineract.infrastructure.core.exception.InvalidJsonException;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
+import org.apache.fineract.infrastructure.core.validator.EmailAddressValidator;
 import org.apache.fineract.infrastructure.reportmailingjob.ReportMailingJobConstants;
 import org.apache.fineract.infrastructure.reportmailingjob.data.ReportMailingJobEmailAttachmentFileFormat;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,8 +49,6 @@ import org.springframework.stereotype.Component;
 public class ReportMailingJobValidator {
 
     private final FromJsonHelper fromJsonHelper;
-    private static final String EMAIL_REGEX = "^[\\w!#$%&’*+/=?`{|}~^-]+(?:\\.[\\w!#$%&’*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
-    private static final Pattern EMAIL_PATTERN = Pattern.compile(EMAIL_REGEX);
 
     @Autowired
     public ReportMailingJobValidator(final FromJsonHelper fromJsonHelper) {
@@ -246,25 +243,7 @@ public class ReportMailingJobValidator {
      * @return true if string is a valid email address
      **/
     public boolean isValidEmail(String email) {
-        // this is the easiest check
-        if (email == null) {
-            return false;
-        }
-
-        // this is another easy check
-        if (email.endsWith(".")) {
-            return false;
-        }
-
-        // Check the whole email address structure
-        Matcher emailMatcher = EMAIL_PATTERN.matcher(email);
-
-        // check if the Matcher matches the email pattern
-        if (!emailMatcher.matches()) {
-            return false;
-        }
-
-        return true;
+        return EmailAddressValidator.isValid(email);
     }
 
     /**
