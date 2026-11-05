@@ -40,19 +40,20 @@ public interface CommandSourceRepository extends JpaRepository<CommandSource, Lo
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Query("""
             update CommandSource c
-            set c.checker = :checker, c.checkedOnDate = :checkedOnDate
+            set c.checker = :checker, c.checkedOnDate = :checkedOnDate, c.approvalClaimToken = :approvalClaimToken
             where c.id = :id and c.status = :status and c.checkedOnDate is null
             """)
     int claimForApproval(@Param("id") Long id, @Param("checker") AppUser checker, @Param("checkedOnDate") OffsetDateTime checkedOnDate,
-            @Param("status") Integer status);
+            @Param("approvalClaimToken") String approvalClaimToken, @Param("status") Integer status);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Query("""
             update CommandSource c
-            set c.checker = null, c.checkedOnDate = null
-            where c.id = :id and c.checker = :checker and c.status = :status
+            set c.checker = null, c.checkedOnDate = null, c.approvalClaimToken = null
+            where c.id = :id and c.checker = :checker and c.approvalClaimToken = :approvalClaimToken and c.status = :status
             """)
-    int releaseApprovalClaim(@Param("id") Long id, @Param("checker") AppUser checker, @Param("status") Integer status);
+    int releaseApprovalClaim(@Param("id") Long id, @Param("checker") AppUser checker,
+            @Param("approvalClaimToken") String approvalClaimToken, @Param("status") Integer status);
 
 }

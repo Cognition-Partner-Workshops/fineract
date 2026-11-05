@@ -20,8 +20,12 @@ package org.apache.fineract.commands.service;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -116,9 +120,10 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
     public CommandProcessingResult approveEntry(final Long makerCheckerId) {
         validateIsUpdateAllowed();
         final AppUser checker = this.context.authenticatedUser();
-        final CommandSource commandSourceInput = validateMakerCheckerTransaction(makerCheckerId, checker);
+        final ApprovalClaim approvalClaim = validateMakerCheckerTransaction(makerCheckerId, checker);
 
-        return runWithApprovalClaim(makerCheckerId, checker, () -> {
+        return runWithApprovalClaim(makerCheckerId, checker, approvalClaim, () -> {
+            final CommandSource commandSourceInput = approvalClaim.commandSource();
             final CommandWrapper wrapper = CommandWrapper.fromExistingCommand(makerCheckerId, commandSourceInput.getActionName(),
                     commandSourceInput.getEntityName(), commandSourceInput.getResourceId(), commandSourceInput.getSubResourceId(),
                     commandSourceInput.getResourceGetUrl(), commandSourceInput.getProductId(), commandSourceInput.getOfficeId(),
@@ -144,15 +149,15 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
 
         validateIsUpdateAllowed();
         final AppUser checker = this.context.authenticatedUser();
-        validateMakerCheckerTransaction(makerCheckerId, checker);
+        final ApprovalClaim approvalClaim = validateMakerCheckerTransaction(makerCheckerId, checker);
 
-        return runWithApprovalClaim(makerCheckerId, checker, () -> {
+        return runWithApprovalClaim(makerCheckerId, checker, approvalClaim, () -> {
             this.commandSourceRepository.deleteById(makerCheckerId);
             return makerCheckerId;
         });
     }
 
-    private CommandSource validateMakerCheckerTransaction(final Long makerCheckerId, final AppUser appUser) {
+    private ApprovalClaim validateMakerCheckerTransaction(final Long makerCheckerId, final AppUser appUser) {
         final CommandSource commandSource = this.commandSourceRepository.findById(makerCheckerId)
                 .orElseThrow(() -> new CommandNotFoundException(makerCheckerId));
         if (!commandSource.isAwaitingApproval()) {
@@ -170,22 +175,27 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
             }
         }
         this.officeScopeValidator.validate(commandSource);
-        final int claimed = this.commandSourceRepository.claimForApproval(makerCheckerId, appUser, DateUtils.getAuditOffsetDateTime(),
+        final OffsetDateTime claimedAt = DateUtils.getAuditOffsetDateTime().truncatedTo(ChronoUnit.MICROS);
+        final String claimToken = UUID.randomUUID().toString();
+        final int claimed = this.commandSourceRepository.claimForApproval(makerCheckerId, appUser, claimedAt, claimToken,
                 CommandProcessingResultType.AWAITING_APPROVAL.getValue());
         if (claimed != 1) {
             throw new CommandNotAwaitingApprovalException(makerCheckerId);
         }
-        return commandSource;
+        return new ApprovalClaim(commandSource, claimedAt, claimToken);
     }
 
-    private <T> T runWithApprovalClaim(final Long makerCheckerId, final AppUser checker, final Supplier<T> action) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+    private <T> T runWithApprovalClaim(final Long makerCheckerId, final AppUser checker, final ApprovalClaim approvalClaim,
+            final Supplier<T> action) {
+        final boolean synchronizationActive = TransactionSynchronizationManager.isSynchronizationActive();
+        final AtomicBoolean releaseAttempted = new AtomicBoolean();
+        if (synchronizationActive) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 
                 @Override
                 public void afterCompletion(final int status) {
-                    if (status == STATUS_ROLLED_BACK) {
-                        releaseApprovalClaim(makerCheckerId, checker);
+                    if (status == STATUS_ROLLED_BACK || status == STATUS_UNKNOWN) {
+                        releaseApprovalClaimOnce(makerCheckerId, checker, approvalClaim, releaseAttempted);
                     }
                 }
             });
@@ -193,14 +203,20 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
         try {
             return action.get();
         } catch (RuntimeException exception) {
-            releaseApprovalClaim(makerCheckerId, checker);
+            if (!synchronizationActive) {
+                releaseApprovalClaimOnce(makerCheckerId, checker, approvalClaim, releaseAttempted);
+            }
             throw exception;
         }
     }
 
-    private void releaseApprovalClaim(final Long makerCheckerId, final AppUser checker) {
+    private void releaseApprovalClaimOnce(final Long makerCheckerId, final AppUser checker, final ApprovalClaim approvalClaim,
+            final AtomicBoolean releaseAttempted) {
+        if (!releaseAttempted.compareAndSet(false, true)) {
+            return;
+        }
         try {
-            this.commandSourceRepository.releaseApprovalClaim(makerCheckerId, checker,
+            this.commandSourceRepository.releaseApprovalClaim(makerCheckerId, checker, approvalClaim.claimToken(),
                     CommandProcessingResultType.AWAITING_APPROVAL.getValue());
         } catch (RuntimeException exception) {
             log.warn("Failed to release approval claim for command {}.", makerCheckerId, exception);
@@ -215,12 +231,16 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
     public Long rejectEntry(final Long makerCheckerId) {
         validateIsUpdateAllowed();
         final AppUser checker = this.context.authenticatedUser();
-        final CommandSource commandSourceInput = validateMakerCheckerTransaction(makerCheckerId, checker);
+        final ApprovalClaim approvalClaim = validateMakerCheckerTransaction(makerCheckerId, checker);
 
-        return runWithApprovalClaim(makerCheckerId, checker, () -> {
+        return runWithApprovalClaim(makerCheckerId, checker, approvalClaim, () -> {
+            final CommandSource commandSourceInput = approvalClaim.commandSource();
             commandSourceInput.markAsRejected(checker);
             this.commandSourceRepository.save(commandSourceInput);
             return makerCheckerId;
         });
+    }
+
+    private record ApprovalClaim(CommandSource commandSource, OffsetDateTime claimedAt, String claimToken) {
     }
 }

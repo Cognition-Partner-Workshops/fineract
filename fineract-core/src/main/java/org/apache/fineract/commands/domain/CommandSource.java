@@ -98,6 +98,9 @@ public class CommandSource extends AbstractPersistableCustom<Long> {
     @Column(name = "checked_on_date_utc")
     private OffsetDateTime checkedOnDate;
 
+    @Column(name = "approval_claim_token", length = 36)
+    private String approvalClaimToken;
+
     @ManyToOne
     @JoinColumn(name = "checker_id", nullable = true)
     private AppUser checker;

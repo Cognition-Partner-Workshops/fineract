@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -56,6 +58,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -191,7 +194,7 @@ class PortfolioCommandSourceWritePlatformServiceSecurityTest {
         assertThrows(JsonSyntaxException.class, () -> underTest.approveEntry(commandId));
 
         assertAll(
-                () -> verify(statefulRepository, times(1)).releaseApprovalClaim(eq(commandId), any(AppUser.class),
+                () -> verify(statefulRepository, times(1)).releaseApprovalClaim(eq(commandId), any(AppUser.class), anyString(),
                         eq(CommandProcessingResultType.AWAITING_APPROVAL.getValue())),
                 () -> assertEquals(commandId, assertDoesNotThrow(() -> underTest.rejectEntry(commandId))));
     }
@@ -256,7 +259,7 @@ class PortfolioCommandSourceWritePlatformServiceSecurityTest {
             }
         }
 
-        verify(commandSourceRepository, never()).releaseApprovalClaim(eq(commandId), any(AppUser.class),
+        verify(commandSourceRepository, never()).releaseApprovalClaim(eq(commandId), any(AppUser.class), anyString(),
                 eq(CommandProcessingResultType.AWAITING_APPROVAL.getValue()));
     }
 
@@ -271,6 +274,38 @@ class PortfolioCommandSourceWritePlatformServiceSecurityTest {
         assertThrows(IllegalStateException.class, () -> underTest.rejectEntry(commandId));
 
         verifyClaimReleased(commandId);
+    }
+
+    @Test
+    void synchronizationDefersFailureReleaseUntilRollbackAndOnlyOnce() {
+        final Long commandId = 48L;
+        final CommandSource commandSource = approvableCommand("{\"invalid\":");
+        when(commandSourceRepository.findById(commandId)).thenReturn(Optional.of(commandSource));
+        checkerSetup();
+        final ArgumentCaptor<OffsetDateTime> claimedAtCaptor = ArgumentCaptor.forClass(OffsetDateTime.class);
+        final ArgumentCaptor<String> claimTokenCaptor = ArgumentCaptor.forClass(String.class);
+        TransactionSynchronizationManager.initSynchronization();
+
+        try {
+            assertThrows(JsonSyntaxException.class, () -> underTest.approveEntry(commandId));
+
+            verify(commandSourceRepository, never()).releaseApprovalClaim(any(), any(), anyString(), any());
+            verify(commandSourceRepository).claimForApproval(eq(commandId), any(AppUser.class), claimedAtCaptor.capture(),
+                    claimTokenCaptor.capture(), eq(CommandProcessingResultType.AWAITING_APPROVAL.getValue()));
+            assertTrue(claimedAtCaptor.getValue().getNano() % 1_000 == 0);
+
+            final List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertEquals(1, synchronizations.size());
+            synchronizations.forEach(synchronization -> synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+            synchronizations.forEach(synchronization -> synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+            verify(commandSourceRepository, times(1)).releaseApprovalClaim(eq(commandId), any(AppUser.class),
+                    eq(claimTokenCaptor.getValue()), eq(CommandProcessingResultType.AWAITING_APPROVAL.getValue()));
+        } finally {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
     }
 
     @Test
@@ -311,7 +346,7 @@ class PortfolioCommandSourceWritePlatformServiceSecurityTest {
     }
 
     private void verifyClaimReleased(final Long commandId) {
-        verify(commandSourceRepository).releaseApprovalClaim(eq(commandId), any(AppUser.class),
+        verify(commandSourceRepository, times(1)).releaseApprovalClaim(eq(commandId), any(AppUser.class), anyString(),
                 eq(CommandProcessingResultType.AWAITING_APPROVAL.getValue()));
     }
 
