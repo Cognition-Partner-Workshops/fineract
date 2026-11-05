@@ -19,6 +19,7 @@
 package org.apache.fineract.infrastructure.event.business.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -27,8 +28,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Stack;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
@@ -51,6 +56,87 @@ import org.springframework.transaction.TransactionExecution;
 @SuppressWarnings({ "rawtypes", "unchecked" })
 @MockitoSettings(strictness = Strictness.LENIENT)
 class BusinessEventNotifierServiceImplTest {
+
+    private ThreadLocal<?> threadLocal(String name) throws Exception {
+        Field field = BusinessEventNotifierServiceImpl.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return (ThreadLocal<?>) field.get(underTest);
+    }
+
+    private void assertRemoved(String name) throws Exception {
+        Method isPresent = ThreadLocal.class.getDeclaredMethod("isPresent", Thread.class);
+        isPresent.setAccessible(true);
+        assertThat(isPresent.invoke(threadLocal(name), Thread.currentThread())).isEqualTo(false);
+    }
+
+    @Test
+    void resetRecordingRemovesThreadLocalEntries() throws Exception {
+        underTest.startExternalEventRecording();
+        threadLocal("recordedEvents").get();
+        underTest.resetEventRecording();
+        assertRemoved("eventRecordingEnabled");
+        assertRemoved("recordedEvents");
+        underTest.resetEventRecording();
+        assertRemoved("eventRecordingEnabled");
+        assertRemoved("recordedEvents");
+    }
+
+    @Test
+    void stopRecordingRemovesThreadLocalEntries() throws Exception {
+        configureExternalEventsProperties(true);
+        underTest.startExternalEventRecording();
+        underTest.stopExternalEventRecording();
+        assertRemoved("eventRecordingEnabled");
+        assertRemoved("recordedEvents");
+    }
+
+    @Test
+    void stopRecordingRemovesThreadLocalEntriesWhenPostingFails() throws Exception {
+        configureExternalEventsProperties(true);
+        underTest.startExternalEventRecording();
+        ((List) threadLocal("recordedEvents").get()).add(new MockBusinessEvent());
+        Mockito.doThrow(new IllegalStateException("posting failed")).when(externalEventService).postEvent(any());
+        assertThrows(IllegalStateException.class, () -> underTest.stopExternalEventRecording());
+        assertRemoved("eventRecordingEnabled");
+        assertRemoved("recordedEvents");
+    }
+
+    @Test
+    void transactionCleanupRemovesOnlyOutermostStack() throws Exception {
+        TransactionExecution transaction = mock(TransactionExecution.class);
+        underTest.afterBegin(transaction, null);
+        Object stack = threadLocal("transactionBusinessEvents").get();
+        underTest.afterBegin(transaction, null);
+        underTest.afterRollback(transaction, null);
+        assertThat(threadLocal("transactionBusinessEvents").get()).isSameAs(stack);
+        underTest.afterCommit(transaction, null);
+        assertRemoved("transactionBusinessEvents");
+        assertThat(threadLocal("transactionBusinessEvents").get()).isNotSameAs(stack);
+        threadLocal("transactionBusinessEvents").remove();
+    }
+
+    @Test
+    void cleanupWithoutBeginIsSafe() throws Exception {
+        TransactionExecution transaction = mock(TransactionExecution.class);
+        underTest.afterRollback(transaction, new IllegalStateException("rollback failed"));
+        assertRemoved("transactionBusinessEvents");
+        underTest.afterCommit(transaction, new IllegalStateException("commit failed"));
+        assertRemoved("transactionBusinessEvents");
+    }
+
+    @Test
+    void failedBeginDoesNotPushOntoStack() throws Exception {
+        TransactionExecution transaction = mock(TransactionExecution.class);
+        underTest.afterBegin(transaction, new IllegalStateException("begin failed"));
+        assertRemoved("transactionBusinessEvents");
+        underTest.afterBegin(transaction, null);
+        Object stack = threadLocal("transactionBusinessEvents").get();
+        underTest.afterBegin(transaction, new IllegalStateException("begin failed"));
+        assertThat(threadLocal("transactionBusinessEvents").get()).isSameAs(stack);
+        assertThat((Stack<?>) stack).hasSize(1);
+        underTest.afterRollback(transaction, null);
+        assertRemoved("transactionBusinessEvents");
+    }
 
     @Mock
     private ExternalEventService externalEventService;
