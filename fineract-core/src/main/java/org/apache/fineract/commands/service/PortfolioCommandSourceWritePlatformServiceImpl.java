@@ -219,7 +219,8 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
             this.commandSourceRepository.releaseApprovalClaim(makerCheckerId, checker, approvalClaim.claimToken(),
                     CommandProcessingResultType.AWAITING_APPROVAL.getValue());
         } catch (RuntimeException exception) {
-            log.error("Failed to release approval claim for command {} (token {}); the command may stay blocked until the claim is cleared manually.",
+            log.error(
+                    "Failed to release approval claim for command {} (token {}); the command may stay blocked until the claim is cleared manually.",
                     makerCheckerId, approvalClaim.claimToken(), exception);
         }
     }
