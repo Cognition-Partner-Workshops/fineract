@@ -1906,7 +1906,9 @@ public class AdvancedPaymentScheduleTransactionProcessor extends AbstractLoanRep
         LocalDate transactionDate = loanTransaction.getTransactionDate();
         LoanRepaymentScheduleInstallment.PaymentFunction paymentFunction = currentInstallment.getPaymentFunction(allocationType, action);
         ChargesPaidByFunction chargesPaidByFunction = getChargesPaymentFunction(action);
-        Money portion = paymentFunction.accept(transactionDate, transactionAmountUnprocessed);
+        Money portion = loanTransaction.isInterestWaiver() && allocationType == INTEREST
+                ? currentInstallment.waiveInterestComponent(transactionDate, transactionAmountUnprocessed)
+                : paymentFunction.accept(transactionDate, transactionAmountUnprocessed);
 
         switch (allocationType) {
             case PENALTY -> {
@@ -2524,6 +2526,11 @@ public class AdvancedPaymentScheduleTransactionProcessor extends AbstractLoanRep
 
     private Money processPeriods(LoanTransaction transaction, Money processAmount, LoanPaymentAllocationRule allocationRule,
             List<LoanTransactionToRepaymentScheduleMapping> transactionMappings, Balances balances, TransactionCtx transactionCtx) {
+        if (transaction.isInterestWaiver()) {
+            allocationRule = new LoanPaymentAllocationRule(allocationRule.getLoan(), allocationRule.getTransactionType(),
+                    allocationRule.getAllocationTypes().stream().filter(type -> type.getAllocationType() == INTEREST).toList(),
+                    allocationRule.getFutureInstallmentAllocationRule());
+        }
         LoanScheduleProcessingType scheduleProcessingType = transaction.getLoan().getLoanProductRelatedDetail()
                 .getLoanScheduleProcessingType();
         if (scheduleProcessingType.isHorizontal()) {
@@ -2556,6 +2563,8 @@ public class AdvancedPaymentScheduleTransactionProcessor extends AbstractLoanRep
         if (MathUtil.isEmpty(transactionAmountUnprocessed)) {
             return transactionAmountUnprocessed;
         }
+        Predicate<LoanRepaymentScheduleInstallment> hasAllocatableBalance = installment -> !loanTransaction.isInterestWaiver()
+                || installment.getInterestOutstanding(ctx.getCurrency()).isGreaterThanZero();
         HorizontalPaymentAllocationContext paymentAllocationContext = new HorizontalPaymentAllocationContext(ctx, loanTransaction,
                 paymentAllocationTypes, futureInstallmentAllocationRule, transactionMappings, balances);
         paymentAllocationContext.setTransactionAmountUnprocessed(transactionAmountUnprocessed);
@@ -2579,11 +2588,11 @@ public class AdvancedPaymentScheduleTransactionProcessor extends AbstractLoanRep
                         && context.getTransactionAmountUnprocessed().isGreaterThanZero(), //
                 context -> {
                     LoanRepaymentScheduleInstallment oldestPastDueInstallment = context.getCtx().getInstallments().stream()
-                            .filter(LoanRepaymentScheduleInstallment::isNotFullyPaidOff)
+                            .filter(hasAllocatableBalance).filter(LoanRepaymentScheduleInstallment::isNotFullyPaidOff)
                             .filter(e -> context.getLoanTransaction().isAfter(e.getDueDate()))
                             .min(Comparator.comparing(LoanRepaymentScheduleInstallment::getInstallmentNumber)).orElse(null);
                     LoanRepaymentScheduleInstallment dueInstallment = context.getCtx().getInstallments().stream()
-                            .filter(LoanRepaymentScheduleInstallment::isNotFullyPaidOff)
+                            .filter(hasAllocatableBalance).filter(LoanRepaymentScheduleInstallment::isNotFullyPaidOff)
                             .filter(e -> context.getLoanTransaction().isOn(e.getDueDate()))
                             .min(Comparator.comparing(LoanRepaymentScheduleInstallment::getInstallmentNumber)).orElse(null);
 
@@ -2591,24 +2600,24 @@ public class AdvancedPaymentScheduleTransactionProcessor extends AbstractLoanRep
                     // allocation rule is NEXT_INSTALLMENT or LAST_INSTALLMENT hence the list has only one element.
                     List<LoanRepaymentScheduleInstallment> inAdvanceInstallments = new ArrayList<>();
                     if (FutureInstallmentAllocationRule.REAMORTIZATION.equals(context.getFutureInstallmentAllocationRule())) {
-                        inAdvanceInstallments = context.getCtx().getInstallments().stream()
+                        inAdvanceInstallments = context.getCtx().getInstallments().stream().filter(hasAllocatableBalance)
                                 .filter(LoanRepaymentScheduleInstallment::isNotFullyPaidOff) //
                                 .filter(e -> context.getLoanTransaction().isBefore(e.getDueDate())) //
                                 .toList(); //
                     } else if (FutureInstallmentAllocationRule.NEXT_INSTALLMENT.equals(context.getFutureInstallmentAllocationRule())) {
-                        inAdvanceInstallments = context.getCtx().getInstallments().stream()
+                        inAdvanceInstallments = context.getCtx().getInstallments().stream().filter(hasAllocatableBalance)
                                 .filter(LoanRepaymentScheduleInstallment::isNotFullyPaidOff) //
                                 .filter(e -> context.getLoanTransaction().isBefore(e.getDueDate())) //
                                 .min(Comparator.comparing(LoanRepaymentScheduleInstallment::getInstallmentNumber)).stream() //
                                 .toList(); //
                     } else if (FutureInstallmentAllocationRule.LAST_INSTALLMENT.equals(context.getFutureInstallmentAllocationRule())) {
-                        inAdvanceInstallments = context.getCtx().getInstallments().stream()
+                        inAdvanceInstallments = context.getCtx().getInstallments().stream().filter(hasAllocatableBalance)
                                 .filter(context.getInAdvanceInstallmentsFilteringRules())
                                 .max(Comparator.comparing(LoanRepaymentScheduleInstallment::getInstallmentNumber)).stream() //
                                 .toList(); //
                     } else if (FutureInstallmentAllocationRule.NEXT_LAST_INSTALLMENT.equals(context.getFutureInstallmentAllocationRule())) {
                         // try to resolve as current installment ( not due )
-                        inAdvanceInstallments = context.getCtx().getInstallments().stream()
+                        inAdvanceInstallments = context.getCtx().getInstallments().stream().filter(hasAllocatableBalance)
                                 .filter(LoanRepaymentScheduleInstallment::isNotFullyPaidOff) //
                                 .filter(e -> context.getLoanTransaction().isBefore(e.getDueDate())) //
                                 .filter(f -> context.getLoanTransaction().isAfter(f.getFromDate())
@@ -2616,7 +2625,7 @@ public class AdvancedPaymentScheduleTransactionProcessor extends AbstractLoanRep
                                 .toList(); //
                         // if there is no current installment, resolve similar to LAST_INSTALLMENT
                         if (inAdvanceInstallments.isEmpty()) {
-                            inAdvanceInstallments = context.getCtx().getInstallments().stream()
+                            inAdvanceInstallments = context.getCtx().getInstallments().stream().filter(hasAllocatableBalance)
                                     .filter(context.getInAdvanceInstallmentsFilteringRules())
                                     .max(Comparator.comparing(LoanRepaymentScheduleInstallment::getInstallmentNumber)).stream() //
                                     .toList(); //

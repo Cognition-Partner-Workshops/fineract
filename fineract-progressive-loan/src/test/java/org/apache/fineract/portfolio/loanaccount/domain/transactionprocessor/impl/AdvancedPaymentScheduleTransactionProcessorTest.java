@@ -81,6 +81,7 @@ import org.apache.fineract.portfolio.loanproduct.calc.EMICalculator;
 import org.apache.fineract.portfolio.loanproduct.calc.data.ProgressiveLoanInterestScheduleModel;
 import org.apache.fineract.portfolio.loanproduct.domain.AllocationType;
 import org.apache.fineract.portfolio.loanproduct.domain.CreditAllocationTransactionType;
+import org.apache.fineract.portfolio.loanproduct.domain.FutureInstallmentAllocationRule;
 import org.apache.fineract.portfolio.loanproduct.domain.LoanProductRelatedDetail;
 import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationTransactionType;
 import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationType;
@@ -91,6 +92,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -173,6 +176,42 @@ class AdvancedPaymentScheduleTransactionProcessorTest {
         assertEquals(0, chargeAmount.compareTo(installment.getFeeChargesCharged(currency).getAmount()));
         assertEquals(0, BigDecimal.ZERO.compareTo(installment.getFeeChargesOutstanding(currency).getAmount()));
         Mockito.verify(loan, times(0)).getPaymentAllocationRules();
+    }
+
+    @ParameterizedTest
+    @CsvSource({ "HORIZONTAL,100", "VERTICAL,100", "HORIZONTAL,150", "VERTICAL,150" })
+    void interestWaiverDoesNotPayPastDuePrincipal(LoanScheduleProcessingType processingType, BigDecimal waivedAmount) {
+        Loan loan = mock(Loan.class);
+        LoanProductRelatedDetail detail = mock(LoanProductRelatedDetail.class);
+        when(loan.getCurrency()).thenReturn(MONETARY_CURRENCY);
+        when(loan.getLoanProductRelatedDetail()).thenReturn(detail);
+        when(detail.getLoanScheduleProcessingType()).thenReturn(processingType);
+        LoanPaymentAllocationRule rule = new LoanPaymentAllocationRule(loan, PaymentAllocationTransactionType.DEFAULT,
+                List.of(PaymentAllocationType.PAST_DUE_PRINCIPAL, PaymentAllocationType.PAST_DUE_INTEREST,
+                        PaymentAllocationType.DUE_PRINCIPAL, PaymentAllocationType.DUE_INTEREST, PaymentAllocationType.IN_ADVANCE_PRINCIPAL,
+                        PaymentAllocationType.IN_ADVANCE_INTEREST),
+                FutureInstallmentAllocationRule.NEXT_INSTALLMENT);
+        when(loan.getPaymentAllocationRules()).thenReturn(List.of(rule));
+        LoanRepaymentScheduleInstallment installment = new LoanRepaymentScheduleInstallment(loan, 1, transactionDate.minusMonths(2),
+                transactionDate.minusMonths(1), new BigDecimal("1000"), new BigDecimal("120"), BigDecimal.ZERO, BigDecimal.ZERO, false,
+                null, BigDecimal.ZERO);
+        LoanRepaymentScheduleInstallment futureInstallment = new LoanRepaymentScheduleInstallment(loan, 2, transactionDate,
+                transactionDate.plusMonths(1), new BigDecimal("1000"), new BigDecimal("120"), BigDecimal.ZERO, BigDecimal.ZERO, false, null,
+                BigDecimal.ZERO);
+        Money amount = Money.of(MONETARY_CURRENCY, waivedAmount);
+        LoanTransaction waiver = LoanTransaction.waiver(null, loan, amount, transactionDate, amount, Money.zero(MONETARY_CURRENCY),
+                org.apache.fineract.infrastructure.core.domain.ExternalId.empty());
+        underTest.processLatestTransaction(waiver, new TransactionCtx(MONETARY_CURRENCY, List.of(installment, futureInstallment), Set.of(),
+                new MoneyHolder(Money.zero(MONETARY_CURRENCY)), new ChangedTransactionDetail()));
+        assertEquals(0, new BigDecimal("1000").compareTo(installment.getPrincipalOutstanding(MONETARY_CURRENCY).getAmount()));
+        BigDecimal pastDueWaived = waivedAmount.min(new BigDecimal("120"));
+        assertEquals(0,
+                new BigDecimal("120").subtract(pastDueWaived).compareTo(installment.getInterestOutstanding(MONETARY_CURRENCY).getAmount()));
+        assertEquals(0, pastDueWaived.compareTo(installment.getInterestWaived(MONETARY_CURRENCY).getAmount()));
+        assertEquals(0, waivedAmount.subtract(pastDueWaived).compareTo(futureInstallment.getInterestWaived(MONETARY_CURRENCY).getAmount()));
+        assertEquals(0, new BigDecimal("1000").compareTo(futureInstallment.getPrincipalOutstanding(MONETARY_CURRENCY).getAmount()));
+        assertEquals(0, waivedAmount.compareTo(waiver.getInterestPortion()));
+        assertEquals(0, Money.zero(MONETARY_CURRENCY).getAmount().compareTo(waiver.getPrincipalPortion(MONETARY_CURRENCY).getAmount()));
     }
 
     @Test
