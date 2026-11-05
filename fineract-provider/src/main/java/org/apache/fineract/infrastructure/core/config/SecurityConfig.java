@@ -182,8 +182,10 @@ public class SecurityConfig {
             http.addFilterAfter(twoFactorAuthenticationFilter(), CorrelationHeaderFilter.class);
         }
 
-        if (serverProperties.getSsl().isEnabled() || fineractProperties.getSecurity().getHsts().isEnabled()) {
+        if (fineractProperties.getSecurity().getHsts().isEnabled()) {
             http.redirectToHttps(Customizer.withDefaults());
+        } else if (serverProperties.getSsl().isEnabled()) {
+            http.redirectToHttps(https -> https.requestMatchers(API_MATCHER.matcher("/api/**")));
         }
 
         if (fineractProperties.getSecurity().getHsts().isEnabled()) {
