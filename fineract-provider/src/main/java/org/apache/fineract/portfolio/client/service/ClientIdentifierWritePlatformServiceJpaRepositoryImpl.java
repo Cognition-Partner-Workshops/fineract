@@ -28,6 +28,7 @@ import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.documentmanagement.retention.IdentityDocumentRetentionPolicy;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.client.command.ClientIdentifierCommand;
 import org.apache.fineract.portfolio.client.domain.Client;
@@ -55,17 +56,20 @@ public class ClientIdentifierWritePlatformServiceJpaRepositoryImpl implements Cl
     private final ClientIdentifierRepository clientIdentifierRepository;
     private final CodeValueRepositoryWrapper codeValueRepository;
     private final ClientIdentifierCommandFromApiJsonDeserializer clientIdentifierCommandFromApiJsonDeserializer;
+    private final IdentityDocumentRetentionPolicy retentionPolicy;
 
     @Autowired
     public ClientIdentifierWritePlatformServiceJpaRepositoryImpl(final PlatformSecurityContext context,
             final ClientRepositoryWrapper clientRepository, final ClientIdentifierRepository clientIdentifierRepository,
             final CodeValueRepositoryWrapper codeValueRepository,
-            final ClientIdentifierCommandFromApiJsonDeserializer clientIdentifierCommandFromApiJsonDeserializer) {
+            final ClientIdentifierCommandFromApiJsonDeserializer clientIdentifierCommandFromApiJsonDeserializer,
+            final IdentityDocumentRetentionPolicy retentionPolicy) {
         this.context = context;
         this.clientRepository = clientRepository;
         this.clientIdentifierRepository = clientIdentifierRepository;
         this.codeValueRepository = codeValueRepository;
         this.clientIdentifierCommandFromApiJsonDeserializer = clientIdentifierCommandFromApiJsonDeserializer;
+        this.retentionPolicy = retentionPolicy;
     }
 
     @Transactional
@@ -180,6 +184,7 @@ public class ClientIdentifierWritePlatformServiceJpaRepositoryImpl implements Cl
 
         final ClientIdentifier clientIdentifier = this.clientIdentifierRepository.findById(identifierId)
                 .orElseThrow(() -> new ClientIdentifierNotFoundException(identifierId));
+        retentionPolicy.validateIdentifierDeletion(clientIdentifier);
         this.clientIdentifierRepository.delete(clientIdentifier);
 
         return new CommandProcessingResultBuilder() //

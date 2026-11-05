@@ -120,6 +120,10 @@ public class ClientIdentifier extends AbstractAuditableWithUTCDateTimeCustom<Lon
         return actualChanges;
     }
 
+    public Client client() {
+        return this.client;
+    }
+
     public String documentKey() {
         return this.documentKey;
     }
