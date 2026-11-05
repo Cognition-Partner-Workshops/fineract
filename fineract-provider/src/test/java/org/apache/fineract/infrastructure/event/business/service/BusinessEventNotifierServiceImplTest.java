@@ -45,12 +45,49 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionExecution;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings({ "rawtypes", "unchecked" })
 @MockitoSettings(strictness = Strictness.LENIENT)
 class BusinessEventNotifierServiceImplTest {
+
+    @Test
+    void stopRecordingRemovesThreadLocal() {
+        configureExternalEventsProperties(false);
+        ThreadLocal<Boolean> recording = Mockito.spy(ThreadLocal.withInitial(() -> false));
+        ReflectionTestUtils.setField(underTest, "eventRecordingEnabled", recording);
+        underTest.startExternalEventRecording();
+        underTest.stopExternalEventRecording();
+        verify(recording).remove();
+        assertThat(recording.get()).isFalse();
+    }
+
+    @Test
+    void resetRecordingRemovesThreadLocal() {
+        ThreadLocal<Boolean> recording = Mockito.spy(ThreadLocal.withInitial(() -> false));
+        ReflectionTestUtils.setField(underTest, "eventRecordingEnabled", recording);
+        underTest.startExternalEventRecording();
+        underTest.resetEventRecording();
+        verify(recording).remove();
+        assertThat(recording.get()).isFalse();
+    }
+
+    @Test
+    void nestedTransactionsRemoveThreadLocalOnlyAfterOuterCommit() {
+        ThreadLocal<?> events = Mockito.spy((ThreadLocal<?>) ReflectionTestUtils.getField(underTest, "transactionBusinessEvents"));
+        ReflectionTestUtils.setField(underTest, "transactionBusinessEvents", events);
+        TransactionExecution transaction = mock(TransactionExecution.class);
+        underTest.afterBegin(transaction, null);
+        underTest.afterBegin(transaction, null);
+        underTest.beforeCommit(transaction);
+        underTest.afterCommit(transaction, null);
+        verify(events, never()).remove();
+        underTest.beforeCommit(transaction);
+        underTest.afterCommit(transaction, null);
+        verify(events).remove();
+    }
 
     @Mock
     private ExternalEventService externalEventService;
