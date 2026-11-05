@@ -125,6 +125,36 @@ class PortfolioCommandSourceWritePlatformServiceSecurityTest {
     }
 
     @Test
+    void rejectsSavingsTransactionCommandsOutsideUserOfficeBeforeExecution() {
+        final CommandWrapper[] wrappers = { new CommandWrapperBuilder().savingsAccountWithdrawal(23L).withJson("{}").build(),
+                new CommandWrapperBuilder().savingsAccountDeposit(23L).withJson("{}").build() };
+        for (final CommandWrapper wrapper : wrappers) {
+            authenticatedUserFor(wrapper, 7L);
+            doThrow(new NoAuthorizationException("outside office scope")).when(officeScopeValidator).validate(wrapper);
+
+            assertThrows(NoAuthorizationException.class, () -> underTest.logCommandSource(wrapper));
+
+            verify(processAndLogCommandService, never()).executeCommand(any(), any(), anyBoolean());
+        }
+    }
+
+    @Test
+    void permitsSavingsTransactionCommandsWithinUserOffice() {
+        final CommandWrapper[] wrappers = { new CommandWrapperBuilder().savingsAccountWithdrawal(23L).withJson("{}").build(),
+                new CommandWrapperBuilder().savingsAccountDeposit(23L).withJson("{}").build() };
+        for (final CommandWrapper wrapper : wrappers) {
+            authenticatedUserFor(wrapper, 7L);
+            final CommandProcessingResult expected = Mockito.mock(CommandProcessingResult.class);
+            when(processAndLogCommandService.executeCommand(eq(wrapper), any(JsonCommand.class), eq(false))).thenReturn(expected);
+
+            assertSame(expected, underTest.logCommandSource(wrapper));
+
+            verify(officeScopeValidator).validate(wrapper);
+            verify(processAndLogCommandService).executeCommand(eq(wrapper), any(JsonCommand.class), eq(false));
+        }
+    }
+
+    @Test
     void rejectsSelfUpdateOfRolesOfficeOrSelfServiceStatus() {
         final CommandWrapper wrapper = new CommandWrapperBuilder().updateUser(7L)
                 .withJson("{\"roles\":[1],\"officeId\":2,\"isSelfServiceUser\":true}").build();
