@@ -1,0 +1,7 @@
+# Code owners for Cognition-Partner-Workshops/fineract (PES-3).
+# Owners must be repository collaborators with write access.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @mbatchelor81 @bsmitches @brb-cog
+
+/.github/ @mbatchelor81 @bsmitches
