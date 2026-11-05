@@ -33,6 +33,7 @@ tasks.matching {
 }
 
 dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-liquibase'
     spotbugsAux 'org.osgi:org.osgi.core:6.0.0'
     modules {
         module("io.swagger.core.v3:swagger-annotations") {
@@ -238,5 +239,4 @@ dependencies {
         exclude group: 'javax.activation'
         exclude group: 'org.skyscreamer'
     }
-    testImplementation ('org.mockito:mockito-inline')
 }

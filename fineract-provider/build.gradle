@@ -64,7 +64,7 @@ resolve {
     outputDir = file("${buildDir}/resources/main/static")
     openApiFile = file("${buildDir}/tmp/swagger/fineract-input.yaml")
     sortOutput = true
-    dependsOn(prepareInputYaml)
+    setDependsOn([tasks.named('classes'), tasks.named('prepareInputYaml')])
 }
 
 configurations {

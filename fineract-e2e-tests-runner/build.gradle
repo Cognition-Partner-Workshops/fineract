@@ -40,11 +40,11 @@ dependencies {
 
     testImplementation 'com.squareup.retrofit2:retrofit:2.11.0'
     testImplementation 'org.apache.httpcomponents:httpclient:4.5.14'
-    testImplementation 'org.apache.commons:commons-lang3:3.18.0'
+    testImplementation 'org.apache.commons:commons-lang3'
     testImplementation ('com.googlecode.json-simple:json-simple:1.1.1') {
         exclude group: 'junit', module: 'junit'
     }
-    testImplementation 'com.google.code.gson:gson:2.11.0'
+    testImplementation 'com.google.code.gson:gson'
 
     testImplementation 'org.junit.platform:junit-platform-suite'
     testImplementation 'org.junit.platform:junit-platform-console'
@@ -65,7 +65,7 @@ dependencies {
 
     testImplementation 'org.apache.activemq:activemq-client:6.1.6'
     testImplementation "org.apache.avro:avro:1.12.0"
-    testImplementation "org.awaitility:awaitility:4.2.2"
+    testImplementation "org.awaitility:awaitility"
     testImplementation 'io.github.classgraph:classgraph:4.8.179'
 
     testImplementation 'org.apache.commons:commons-collections4:4.4'
