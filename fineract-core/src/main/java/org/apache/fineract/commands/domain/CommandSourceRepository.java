@@ -19,11 +19,14 @@
 package org.apache.fineract.commands.domain;
 
 import java.time.OffsetDateTime;
+import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface CommandSourceRepository extends JpaRepository<CommandSource, Long>, JpaSpecificationExecutor<CommandSource> {
 
@@ -32,5 +35,24 @@ public interface CommandSourceRepository extends JpaRepository<CommandSource, Lo
     @Modifying(flushAutomatically = true)
     @Query("delete from CommandSource c where c.status = :status and c.madeOnDate is not null and c.madeOnDate <= :dateForPurgeCriteria")
     void deleteOlderEventsWithStatus(@Param("status") Integer status, @Param("dateForPurgeCriteria") OffsetDateTime dateForPurgeCriteria);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Query("""
+            update CommandSource c
+            set c.checker = :checker, c.checkedOnDate = :checkedOnDate
+            where c.id = :id and c.status = :status and c.checkedOnDate is null
+            """)
+    int claimForApproval(@Param("id") Long id, @Param("checker") AppUser checker, @Param("checkedOnDate") OffsetDateTime checkedOnDate,
+            @Param("status") Integer status);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Query("""
+            update CommandSource c
+            set c.checker = null, c.checkedOnDate = null
+            where c.id = :id and c.checker = :checker and c.status = :status
+            """)
+    int releaseApprovalClaim(@Param("id") Long id, @Param("checker") AppUser checker, @Param("status") Integer status);
 
 }

@@ -31,6 +31,7 @@ import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
 import org.apache.fineract.infrastructure.dataqueries.service.EntityDatatableChecksWritePlatformService;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.holiday.domain.HolidayRepository;
@@ -262,14 +263,14 @@ public class LoanAccountConfiguration {
             LoanDisbursementDetailsAssembler loanDisbursementDetailsAssembler, LoanChargeMapper loanChargeMapper,
             LoanCollateralManagementMapper loanCollateralManagementMapper, LoanAccrualsProcessingService loanAccrualsProcessingService,
             LoanDisbursementService loanDisbursementService, LoanChargeService loanChargeService, LoanOfficerService loanOfficerService,
-            LoanScheduleComponent loanSchedule) {
+            LoanScheduleComponent loanSchedule, OfficeScopeValidator officeScopeValidator) {
         return new LoanAssemblerImpl(fromApiJsonHelper, loanRepository, loanProductRepository, clientRepository, groupRepository,
                 fundRepository, staffRepository, codeValueRepository, loanScheduleAssembler, loanChargeAssembler, collateralAssembler,
                 loanRepaymentScheduleTransactionProcessorFactory, holidayRepository, configurationDomainService, workingDaysRepository,
                 rateAssembler, externalIdFactory, accountNumberFormatRepository, glimRepository, accountNumberGenerator,
                 glimAccountInfoWritePlatformService, loanCollateralAssembler, calculationPlatformService, loanDisbursementDetailsAssembler,
                 loanChargeMapper, loanCollateralManagementMapper, loanAccrualsProcessingService, loanDisbursementService, loanChargeService,
-                loanOfficerService, loanSchedule);
+                loanOfficerService, loanSchedule, officeScopeValidator);
     }
 
     @Bean

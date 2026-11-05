@@ -19,9 +19,12 @@
 package org.apache.fineract.commands.service;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.fineract.commands.domain.CommandProcessingResultType;
 import org.apache.fineract.commands.domain.CommandSource;
 import org.apache.fineract.commands.domain.CommandSourceRepository;
 import org.apache.fineract.commands.domain.CommandWrapper;
@@ -32,7 +35,10 @@ import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDoma
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.jobs.service.SchedulerJobRunnerReadService;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.stereotype.Service;
@@ -49,27 +55,36 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
     private final CommandProcessingService processAndLogCommandService;
     private final SchedulerJobRunnerReadService schedulerJobRunnerReadService;
     private final ConfigurationDomainService configurationService;
+    private final OfficeScopeValidator officeScopeValidator;
+
+    private static final Set<String> SELF_SERVICE_USER_FIELDS = Set.of("roles", "officeId", "isSelfServiceUser");
+    private static final Set<String> PASSWORD_FIELDS = Set.of("password", "repeatPassword");
 
     @Override
     public CommandProcessingResult logCommandSource(final CommandWrapper wrapper) {
         boolean isApprovedByChecker = false;
-
-        // check if is update of own account details
-        if (wrapper.isChangeOfOwnUserDetails(this.context.authenticatedUser(wrapper).getId())) {
-            // then allow this operation to proceed.
-            // maker checker doesnt mean anything here.
-            isApprovedByChecker = true; // set to true in case permissions have
-                                        // been maker-checker enabled by
-                                        // accident.
+        final AppUser authenticatedUser = this.context.authenticatedUser(wrapper);
+        JsonElement parsedCommand = null;
+        if (wrapper.isChangeOfOwnUserDetails(authenticatedUser.getId())) {
+            parsedCommand = this.fromApiJsonHelper.parse(wrapper.getJson());
+            if (wrapper.isUpdate() && containsAny(parsedCommand, SELF_SERVICE_USER_FIELDS)) {
+                throw new NoAuthorizationException("Users cannot update their own roles, office, or self-service status.");
+            }
+            if (isPasswordOnlyChange(wrapper, parsedCommand)) {
+                isApprovedByChecker = true;
+            } else {
+                authenticatedUser.validateHasPermissionTo(wrapper.getTaskPermissionName());
+            }
         } else {
-            // if not user changing their own details - check user has
-            // permission to perform specific task.
-            this.context.authenticatedUser(wrapper).validateHasPermissionTo(wrapper.getTaskPermissionName());
+            authenticatedUser.validateHasPermissionTo(wrapper.getTaskPermissionName());
         }
+        this.officeScopeValidator.validate(wrapper);
         validateIsUpdateAllowed();
 
         final String json = wrapper.getJson();
-        final JsonElement parsedCommand = this.fromApiJsonHelper.parse(json);
+        if (parsedCommand == null) {
+            parsedCommand = this.fromApiJsonHelper.parse(json);
+        }
         JsonCommand command = JsonCommand.from(json, parsedCommand, this.fromApiJsonHelper, wrapper.getEntityName(), wrapper.getEntityId(),
                 wrapper.getSubentityId(), wrapper.getGroupId(), wrapper.getClientId(), wrapper.getLoanId(), wrapper.getSavingsId(),
                 wrapper.getTransactionId(), wrapper.getHref(), wrapper.getProductId(), wrapper.getCreditBureauId(),
@@ -78,10 +93,26 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
         return this.processAndLogCommandService.executeCommand(wrapper, command, isApprovedByChecker);
     }
 
+    private boolean isPasswordOnlyChange(final CommandWrapper wrapper, final JsonElement parsedCommand) {
+        if ((!wrapper.isUpdate() && !wrapper.isChangePasswordOperation()) || parsedCommand == null || !parsedCommand.isJsonObject()) {
+            return false;
+        }
+        return parsedCommand.getAsJsonObject().has("password")
+                && parsedCommand.getAsJsonObject().keySet().stream().allMatch(PASSWORD_FIELDS::contains);
+    }
+
+    private boolean containsAny(final JsonElement parsedCommand, final Set<String> keys) {
+        if (parsedCommand == null || !parsedCommand.isJsonObject()) {
+            return false;
+        }
+        final JsonObject jsonObject = parsedCommand.getAsJsonObject();
+        return keys.stream().anyMatch(jsonObject::has);
+    }
+
     @Override
     public CommandProcessingResult approveEntry(final Long makerCheckerId) {
-        final CommandSource commandSourceInput = validateMakerCheckerTransaction(makerCheckerId);
         validateIsUpdateAllowed();
+        final CommandSource commandSourceInput = validateMakerCheckerTransaction(makerCheckerId);
 
         final CommandWrapper wrapper = CommandWrapper.fromExistingCommand(makerCheckerId, commandSourceInput.getActionName(),
                 commandSourceInput.getEntityName(), commandSourceInput.getResourceId(), commandSourceInput.getSubResourceId(),
@@ -99,15 +130,21 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
                 commandSourceInput.getOrganisationCreditBureauId(), commandSourceInput.getJobName(),
                 commandSourceInput.getLoanExternalId());
 
-        return this.processAndLogCommandService.executeCommand(wrapper, command, true);
+        try {
+            return this.processAndLogCommandService.executeCommand(wrapper, command, true);
+        } catch (RuntimeException exception) {
+            this.commandSourceRepository.releaseApprovalClaim(makerCheckerId, this.context.authenticatedUser(),
+                    CommandProcessingResultType.AWAITING_APPROVAL.getValue());
+            throw exception;
+        }
     }
 
     @Transactional
     @Override
     public Long deleteEntry(final Long makerCheckerId) {
 
-        validateMakerCheckerTransaction(makerCheckerId);
         validateIsUpdateAllowed();
+        validateMakerCheckerTransaction(makerCheckerId);
 
         this.commandSourceRepository.deleteById(makerCheckerId);
 
@@ -132,6 +169,12 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
                 throw new UnsupportedCommandException(permissionCode, "Can not be checked by the same user.");
             }
         }
+        this.officeScopeValidator.validate(commandSource);
+        final int claimed = this.commandSourceRepository.claimForApproval(makerCheckerId, appUser, DateUtils.getAuditOffsetDateTime(),
+                CommandProcessingResultType.AWAITING_APPROVAL.getValue());
+        if (claimed != 1) {
+            throw new CommandNotAwaitingApprovalException(makerCheckerId);
+        }
         return commandSource;
     }
 
@@ -141,11 +184,17 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
 
     @Override
     public Long rejectEntry(final Long makerCheckerId) {
-        final CommandSource commandSourceInput = validateMakerCheckerTransaction(makerCheckerId);
         validateIsUpdateAllowed();
+        final CommandSource commandSourceInput = validateMakerCheckerTransaction(makerCheckerId);
         final AppUser maker = this.context.authenticatedUser();
         commandSourceInput.markAsRejected(maker);
-        this.commandSourceRepository.save(commandSourceInput);
+        try {
+            this.commandSourceRepository.save(commandSourceInput);
+        } catch (RuntimeException exception) {
+            this.commandSourceRepository.releaseApprovalClaim(makerCheckerId, maker,
+                    CommandProcessingResultType.AWAITING_APPROVAL.getValue());
+            throw exception;
+        }
         return makerCheckerId;
     }
 }

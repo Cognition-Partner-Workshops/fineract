@@ -105,6 +105,7 @@ public class CreditBureauIntegrationApiResource {
             @FormDataParam("file") final UriInfo uriInfo, @FormDataParam("file") FormDataContentDisposition fileDetail,
             @QueryParam("creditBureauId") @Parameter(description = "creditBureauId") final Long creditBureauId) {
 
+        this.context.authenticatedUser().validateHasPermissionTo("UPLOAD_CREDITREPORT");
         final String responseMessage = this.creditReportWritePlatformService.addCreditReport(creditBureauId, creditReport, fileDetail);
         return this.toCreditReportApiJsonSerializer.serialize(responseMessage);
     }

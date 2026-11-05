@@ -534,7 +534,10 @@ public class AppUser extends AbstractPersistableCustom<Long> implements Platform
         final String authorizationMessage = "User has no authority to " + prefix + " " + resourceType.toLowerCase() + "s";
         final String matchPermission = prefix + "_" + resourceType.toUpperCase();
 
-        if (!hasNotPermissionForAnyOf("ALL_FUNCTIONS", "ALL_FUNCTIONS_READ", matchPermission)) {
+        final boolean hasPermission = "READ".equals(prefix)
+                ? !hasNotPermissionForAnyOf("ALL_FUNCTIONS", "ALL_FUNCTIONS_READ", matchPermission)
+                : !hasNotPermissionForAnyOf("ALL_FUNCTIONS", matchPermission);
+        if (hasPermission) {
             return;
         }
 
