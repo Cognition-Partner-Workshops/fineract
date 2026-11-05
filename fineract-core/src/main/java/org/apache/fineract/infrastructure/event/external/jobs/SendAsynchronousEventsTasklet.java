@@ -73,13 +73,16 @@ public class SendAsynchronousEventsTasklet implements Tasklet {
     private final ThreadPoolTaskExecutor threadPoolTaskExecutor;
 
     @Override
-    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
+    public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws InterruptedException {
         try {
             if (isDownstreamChannelEnabled()) {
                 List<ExternalEventView> events = getQueuedEventsBatch();
                 log.debug("Queued events size: {}", events.size());
                 sendEvents(events);
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
         } catch (Exception e) {
             log.error("Error occurred while processing events: ", e);
         }
@@ -98,7 +101,7 @@ public class SendAsynchronousEventsTasklet implements Tasklet {
                 (events, timeTaken) -> log.debug("Loaded {} events in {}ms", events.size(), timeTaken.toMillis()));
     }
 
-    private void sendEvents(List<ExternalEventView> queuedEvents) {
+    private void sendEvents(List<ExternalEventView> queuedEvents) throws InterruptedException {
         Map<Long, List<byte[]>> partitions = generatePartitions(queuedEvents);
         List<Long> eventIds = queuedEvents.stream().map(ExternalEventView::getId).toList();
         sendEventsToProducer(partitions);
@@ -109,7 +112,7 @@ public class SendAsynchronousEventsTasklet implements Tasklet {
         eventProducer.sendEvents(partitions);
     }
 
-    private void markEventsAsSent(final List<Long> eventIds) {
+    private void markEventsAsSent(final List<Long> eventIds) throws InterruptedException {
         OffsetDateTime sentAt = DateUtils.getAuditOffsetDateTime();
 
         // Partitioning dataset to avoid exception: PreparedStatement can have at most 65,535 parameters
@@ -117,7 +120,10 @@ public class SendAsynchronousEventsTasklet implements Tasklet {
         List<List<Long>> partitions = Lists.partition(eventIds, partitionSize);
         List<Future<?>> tasks = new ArrayList<>();
         final FineractContext context = ThreadLocalContextUtil.getContext();
-        partitions.forEach(partitionedEventIds -> {
+        for (List<Long> partitionedEventIds : partitions) {
+            if (Thread.currentThread().isInterrupted()) {
+                break;
+            }
             tasks.add(threadPoolTaskExecutor.submit(() -> {
                 try {
                     ThreadLocalContextUtil.init(context);
@@ -133,16 +139,26 @@ public class SendAsynchronousEventsTasklet implements Tasklet {
                     ThreadLocalContextUtil.reset();
                 }
             }));
-        });
+        }
+        InterruptedException interruption = Thread.interrupted() ? new InterruptedException("Interrupted while submitting event updates")
+                : null;
         for (Future<?> task : tasks) {
-            try {
-                task.get();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Interrupted while marking events as sent", e);
-            } catch (ExecutionException e) {
-                log.error("Exception while marking events as sent", e);
+            boolean completed = false;
+            while (!completed) {
+                try {
+                    task.get();
+                    completed = true;
+                } catch (InterruptedException e) {
+                    interruption = e;
+                } catch (ExecutionException e) {
+                    log.error("Exception while marking events as sent", e);
+                    completed = true;
+                }
             }
+        }
+        if (interruption != null) {
+            Thread.currentThread().interrupt();
+            throw interruption;
         }
     }
 

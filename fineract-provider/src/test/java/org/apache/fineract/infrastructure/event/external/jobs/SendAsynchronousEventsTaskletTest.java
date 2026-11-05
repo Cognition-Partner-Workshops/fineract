@@ -39,8 +39,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.fineract.avro.MessageV1;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
 import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
@@ -119,6 +122,58 @@ class SendAsynchronousEventsTaskletTest {
                 .thenAnswer(invocation -> invocation.<TransactionCallback<Boolean>>getArgument(0).doInTransaction(transactionStatus));
         underTest = new SendAsynchronousEventsTasklet(fineractProperties, repository, eventProducer, messageFactory, byteBufferConverter,
                 configurationDomainService, transactionTemplate, taskExecutor);
+    }
+
+    @Test
+    void waitsForInFlightWorkBeforeRestoringInterruptFlag() throws Exception {
+        CountDownLatch waiting = new CountDownLatch(1);
+        CompletableFuture<Void> first = new CompletableFuture<>();
+        CompletableFuture<Void> second = new CompletableFuture<>();
+        Future<?> interruptedFuture = mock(Future.class);
+        java.util.concurrent.atomic.AtomicReference<Thread> coordinatorThread = new java.util.concurrent.atomic.AtomicReference<>();
+        when(interruptedFuture.get()).thenAnswer(invocation -> {
+            coordinatorThread.set(Thread.currentThread());
+            waiting.countDown();
+            return first.get();
+        });
+        ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
+        when(executor.submit(any(Runnable.class))).thenReturn((Future) interruptedFuture, (Future) second);
+        SendAsynchronousEventsTasklet service = mock(SendAsynchronousEventsTasklet.class, CALLS_REAL_METHODS);
+        FineractProperties properties = new FineractProperties();
+        FineractProperties.FineractEventsProperties events = new FineractProperties.FineractEventsProperties();
+        FineractProperties.FineractExternalEventsProperties external = new FineractProperties.FineractExternalEventsProperties();
+        external.setPartitionSize(1);
+        events.setExternal(external);
+        properties.setEvents(events);
+        ReflectionTestUtils.setField(service, "fineractProperties", properties);
+        ReflectionTestUtils.setField(service, "threadPoolTaskExecutor", executor);
+        AtomicBoolean restored = new AtomicBoolean();
+        CompletableFuture<Void> coordinator = CompletableFuture.runAsync(() -> {
+            ThreadLocalContextUtil.setBusinessDates(new HashMap<>(Map.of(BusinessDateType.BUSINESS_DATE, LocalDate.of(2026, 1, 1))));
+            try {
+                org.junit.jupiter.api.Assertions.assertThrows(java.lang.reflect.UndeclaredThrowableException.class,
+                        () -> ReflectionTestUtils.invokeMethod(service, "markEventsAsSent", List.of(1L, 2L)));
+                restored.set(Thread.currentThread().isInterrupted());
+            } finally {
+                Thread.interrupted();
+                ThreadLocalContextUtil.reset();
+            }
+        });
+        try {
+            assertTrue(waiting.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            coordinatorThread.get().interrupt();
+            org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.TimeoutException.class,
+                    () -> coordinator.get(200, java.util.concurrent.TimeUnit.MILLISECONDS));
+            first.complete(null);
+            org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.TimeoutException.class,
+                    () -> coordinator.get(200, java.util.concurrent.TimeUnit.MILLISECONDS));
+        } finally {
+            first.complete(null);
+            second.complete(null);
+        }
+        coordinator.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertTrue(restored.get());
+        verify(executor, times(2)).submit(any(Runnable.class));
     }
 
     @AfterEach
@@ -231,7 +286,7 @@ class SendAsynchronousEventsTaskletTest {
     }
 
     @Test
-    public void givenEventBatchSizeIsConfiguredAs10WhenTaskExecutionThenEventReadPageSizeIsCorrect() {
+    public void givenEventBatchSizeIsConfiguredAs10WhenTaskExecutionThenEventReadPageSizeIsCorrect() throws Exception {
         ArgumentCaptor<Pageable> externalEventPageSizeArgumentCaptor = ArgumentCaptor.forClass(Pageable.class);
         List<ExternalEventView> events = new ArrayList<>();
         when(repository.findByStatusOrderByBusinessDateAscIdAsc(Mockito.any(), Mockito.any())).thenReturn(events);
@@ -264,7 +319,7 @@ class SendAsynchronousEventsTaskletTest {
     void restoresInterruptFlag() throws Exception {
         Future<?> future = mock(Future.class);
         InterruptedException interruption = new InterruptedException("interrupted");
-        when(future.get()).thenThrow(interruption);
+        when(future.get()).thenThrow(interruption).thenReturn(null);
         SendAsynchronousEventsTasklet service = mock(SendAsynchronousEventsTasklet.class, CALLS_REAL_METHODS);
         FineractProperties properties = new FineractProperties();
         FineractProperties.FineractEventsProperties events = new FineractProperties.FineractEventsProperties();
@@ -276,7 +331,8 @@ class SendAsynchronousEventsTaskletTest {
         when(executor.submit(any(Runnable.class))).thenReturn((Future) future);
         ReflectionTestUtils.setField(service, "fineractProperties", properties);
         ReflectionTestUtils.setField(service, "threadPoolTaskExecutor", executor);
-        ReflectionTestUtils.invokeMethod(service, "markEventsAsSent", List.of(1L));
+        org.junit.jupiter.api.Assertions.assertThrows(java.lang.reflect.UndeclaredThrowableException.class,
+                () -> ReflectionTestUtils.invokeMethod(service, "markEventsAsSent", List.of(1L)));
         assertTrue(Thread.interrupted());
     }
 }
