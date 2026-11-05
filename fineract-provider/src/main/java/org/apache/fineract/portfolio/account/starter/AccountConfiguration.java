@@ -23,6 +23,7 @@ import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.office.service.OfficeReadPlatformService;
@@ -127,8 +128,9 @@ public class AccountConfiguration {
     @ConditionalOnMissingBean(StandingInstructionWritePlatformService.class)
     public StandingInstructionWritePlatformService standingInstructionWritePlatformService(
             StandingInstructionDataValidator standingInstructionDataValidator, StandingInstructionAssembler standingInstructionAssembler,
-            AccountTransferDetailRepository accountTransferDetailRepository, StandingInstructionRepository standingInstructionRepository) {
+            AccountTransferDetailRepository accountTransferDetailRepository, StandingInstructionRepository standingInstructionRepository,
+            OfficeScopeValidator officeScopeValidator) {
         return new StandingInstructionWritePlatformServiceImpl(standingInstructionDataValidator, standingInstructionAssembler,
-                accountTransferDetailRepository, standingInstructionRepository);
+                accountTransferDetailRepository, standingInstructionRepository, officeScopeValidator);
     }
 }

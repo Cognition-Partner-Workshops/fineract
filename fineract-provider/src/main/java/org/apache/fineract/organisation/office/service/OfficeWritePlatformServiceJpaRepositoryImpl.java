@@ -29,6 +29,7 @@ import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuild
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrency;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrencyRepositoryWrapper;
@@ -38,6 +39,7 @@ import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
 import org.apache.fineract.organisation.office.domain.OfficeTransaction;
 import org.apache.fineract.organisation.office.domain.OfficeTransactionRepository;
+import org.apache.fineract.organisation.office.exception.OfficeTransactionNotFoundException;
 import org.apache.fineract.organisation.office.serialization.OfficeCommandFromApiJsonDeserializer;
 import org.apache.fineract.organisation.office.serialization.OfficeTransactionCommandFromApiJsonDeserializer;
 import org.apache.fineract.useradministration.domain.AppUser;
@@ -57,6 +59,7 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
     private final OfficeRepositoryWrapper officeRepositoryWrapper;
     private final OfficeTransactionRepository officeTransactionRepository;
     private final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository;
+    private final OfficeScopeValidator officeScopeValidator;
 
     @Transactional
     @Override
@@ -168,6 +171,12 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
             toOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(toOfficeId);
             officeId = toOffice.getId();
         }
+        if (fromOffice != null) {
+            this.officeScopeValidator.validateOffice(fromOffice.getId());
+        }
+        if (toOffice != null) {
+            this.officeScopeValidator.validateOffice(toOffice.getId());
+        }
 
         final String currencyCode = command.stringValueOfParameterNamed("currencyCode");
         final ApplicationCurrency appCurrency = this.applicationCurrencyRepository.findOneWithNotFoundDetection(currencyCode);
@@ -193,7 +202,11 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
 
         this.context.authenticatedUser();
 
-        this.officeTransactionRepository.deleteById(transactionId);
+        final OfficeTransaction officeTransaction = this.officeTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new OfficeTransactionNotFoundException(transactionId));
+        this.officeScopeValidator.validateOffice(officeTransaction.fromOffice().getId());
+        this.officeScopeValidator.validateOffice(officeTransaction.toOffice().getId());
+        this.officeTransactionRepository.delete(officeTransaction);
 
         return new CommandProcessingResultBuilder() //
                 .withCommandId(command.commandId()) //

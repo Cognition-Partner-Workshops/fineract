@@ -80,4 +80,12 @@ public class OfficeTransaction extends AbstractPersistableCustom<Long> {
         this.transactionAmount = amount.getAmount();
         this.description = description;
     }
+
+    public Office fromOffice() {
+        return this.from;
+    }
+
+    public Office toOffice() {
+        return this.to;
+    }
 }

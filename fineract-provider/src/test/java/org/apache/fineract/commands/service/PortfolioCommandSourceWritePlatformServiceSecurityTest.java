@@ -155,6 +155,32 @@ class PortfolioCommandSourceWritePlatformServiceSecurityTest {
     }
 
     @Test
+    void rejectsClientTransferCommandsOutsideUserOfficeBeforeExecution() {
+        final CommandWrapper wrapper = new CommandWrapperBuilder().proposeAndAcceptClientTransfer(23L)
+                .withJson("{\"destinationOfficeId\":8}").build();
+        authenticatedUserFor(wrapper, 7L);
+        doThrow(new NoAuthorizationException("outside office scope")).when(officeScopeValidator).validate(wrapper);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.logCommandSource(wrapper));
+
+        verify(processAndLogCommandService, never()).executeCommand(any(), any(), anyBoolean());
+    }
+
+    @Test
+    void permitsClientTransferCommandsWithinUserOffice() {
+        final CommandWrapper wrapper = new CommandWrapperBuilder().proposeAndAcceptClientTransfer(23L)
+                .withJson("{\"destinationOfficeId\":7}").build();
+        authenticatedUserFor(wrapper, 7L);
+        final CommandProcessingResult expected = Mockito.mock(CommandProcessingResult.class);
+        when(processAndLogCommandService.executeCommand(eq(wrapper), any(JsonCommand.class), eq(false))).thenReturn(expected);
+
+        assertSame(expected, underTest.logCommandSource(wrapper));
+
+        verify(officeScopeValidator).validate(wrapper);
+        verify(processAndLogCommandService).executeCommand(eq(wrapper), any(JsonCommand.class), eq(false));
+    }
+
+    @Test
     void rejectsSelfUpdateOfRolesOfficeOrSelfServiceStatus() {
         final CommandWrapper wrapper = new CommandWrapperBuilder().updateUser(7L)
                 .withJson("{\"roles\":[1],\"officeId\":2,\"isSelfServiceUser\":true}").build();
