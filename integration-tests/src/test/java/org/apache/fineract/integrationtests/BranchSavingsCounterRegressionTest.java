@@ -33,11 +33,13 @@ import io.restassured.path.json.JsonPath;
 import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.fineract.integrationtests.common.ClientHelper;
 import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.integrationtests.common.savings.SavingsAccountHelper;
@@ -127,11 +129,61 @@ public class BranchSavingsCounterRegressionTest {
         });
     }
 
+    @Test
+    public void dailyCompoundingInterestAsOnExcludesPostingDate() {
+        AtomicInteger account = new AtomicInteger();
+        runAt(ACTIVATION, () -> {
+            account.set(createAccount(false, new BigDecimal("5"), true));
+            savings.depositToSavingsAccount(account.get(), "500", ACTIVATION, "resourceId");
+            postInterestAsOn(account.get(), ACTIVATION);
+            JsonPath details = details(account.get());
+            assertEquals(0, details.getList("transactions.findAll { it.transactionType.interestPosting && !it.reversed }").size());
+            BigDecimal oneDay = new BigDecimal("500").multiply(new BigDecimal("0.05")).divide(new BigDecimal("365"), 2,
+                    RoundingMode.HALF_UP);
+            money(oneDay, details.get("summary.totalInterestEarned"), "activation-day earned interest");
+            money(oneDay, details.get("summary.interestNotPosted"), "activation-day unposted interest");
+            money(new BigDecimal("500"), details.get("summary.accountBalance"), "same-day balance");
+        });
+        runAt("11 January 2023", () -> {
+            postInterestAsOn(account.get(), "11 January 2023");
+            // As-on posting on 11 January credits 1-10 January; the posting date itself is excluded.
+            BigDecimal dailyRate = new BigDecimal("0.05").divide(new BigDecimal("365"), MathContext.DECIMAL128);
+            BigDecimal interest = new BigDecimal("500")
+                    .multiply(BigDecimal.ONE.add(dailyRate).pow(10, MathContext.DECIMAL128).subtract(BigDecimal.ONE))
+                    .setScale(2, RoundingMode.HALF_UP);
+            JsonPath details = details(account.get());
+            List<Map<String, Object>> postings = details
+                    .getList("transactions.findAll { it.transactionType.interestPosting && !it.reversed }");
+            assertEquals(1, postings.size());
+            assertEquals(List.of(2023, 1, 11), postings.get(0).get("date"));
+            money(interest, postings.get(0).get("amount"), "ten days of compounded interest");
+            money(interest, details.get("summary.totalInterestPosted"), "as-on total interest posted");
+            money(new BigDecimal("500").add(interest), details.get("summary.accountBalance"), "as-on account balance");
+        });
+    }
+
+    private void postInterestAsOn(int account, String date) {
+        JsonObject request = new JsonObject();
+        request.addProperty("locale", "en");
+        request.addProperty("dateFormat", "dd MMMM yyyy");
+        request.addProperty("transactionDate", date);
+        request.addProperty("isPostInterestAsOn", true);
+        Utils.performServerPost(requestSpec, responseSpec,
+                "/fineract-provider/api/v1/savingsaccounts/" + account + "/transactions?command=postInterestAsOn", request.toString());
+    }
+
     private int createAccount(boolean minimumBalance, BigDecimal interestRate) {
+        return createAccount(minimumBalance, interestRate, false);
+    }
+
+    private int createAccount(boolean minimumBalance, BigDecimal interestRate, boolean dailyCompounding) {
         int client = ClientHelper.createClient(requestSpec, responseSpec, ACTIVATION);
         SavingsProductHelper product = new SavingsProductHelper().withNominalAnnualInterestRate(interestRate)
                 .withInterestCompoundingPeriodTypeAsMonthly().withInterestPostingPeriodTypeAsMonthly()
                 .withInterestCalculationPeriodTypeAsDailyBalance().withAccountingRuleAsNone();
+        if (dailyCompounding) {
+            product.withInterestCompoundingPeriodTypeAsDaily();
+        }
         if (minimumBalance) {
             product.withMinRequiredBalance("100").withEnforceMinRequiredBalance("true");
         }
