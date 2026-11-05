@@ -37,6 +37,7 @@ import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.ws.rs.core.Response;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,8 +53,11 @@ import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDoma
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
+import org.apache.fineract.infrastructure.core.domain.BatchRequestContextHolder;
 import org.apache.fineract.infrastructure.core.domain.FineractRequestContextHolder;
+import org.apache.fineract.infrastructure.core.exception.AbstractIdempotentCommandException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessUnderProcessingException;
+import org.apache.fineract.infrastructure.core.exceptionmapper.IdempotentCommandExceptionMapper;
 import org.apache.fineract.infrastructure.core.serialization.ToApiJsonSerializer;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.useradministration.domain.AppUser;
@@ -112,6 +116,8 @@ public class SynchronousCommandProcessingServiceTest {
     public void setup() {
         MockitoAnnotations.openMocks(this);
         RequestContextHolder.resetRequestAttributes();
+        BatchRequestContextHolder.resetRequestAttributes();
+        BatchRequestContextHolder.resetIsEnclosingTransaction();
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
 
         ErrorInfo errorInfo = mock(ErrorInfo.class);
@@ -227,6 +233,8 @@ public class SynchronousCommandProcessingServiceTest {
         when(commandSourceService.getCommandSource(commandId)).thenReturn(commandSource);
 
         AppUser appUser = Mockito.mock(AppUser.class);
+        when(appUser.getId()).thenReturn(1L);
+        when(commandSource.getMaker()).thenReturn(appUser);
         when(commandSourceService.saveInitialNewTransaction(commandWrapper, jsonCommand, appUser, idk)).thenReturn(commandSource);
         when(commandSourceService.saveResultSameTransaction(commandSource)).thenReturn(commandSource);
         when(commandSource.getStatus()).thenReturn(CommandProcessingResultType.UNDER_PROCESSING.getValue());
@@ -283,6 +291,8 @@ public class SynchronousCommandProcessingServiceTest {
         when(commandSourceService.getCommandSource(commandId)).thenReturn(commandSource);
 
         AppUser appUser = Mockito.mock(AppUser.class);
+        when(appUser.getId()).thenReturn(1L);
+        when(commandSource.getMaker()).thenReturn(appUser);
         when(commandSourceService.saveInitialNewTransaction(commandWrapper, jsonCommand, appUser, idk)).thenReturn(commandSource);
         when(commandSourceService.saveResultSameTransaction(commandSource)).thenReturn(commandSource);
         when(commandSource.getStatus()).thenReturn(CommandProcessingResultType.UNDER_PROCESSING.getValue()) //
@@ -339,6 +349,8 @@ public class SynchronousCommandProcessingServiceTest {
         when(commandSourceService.getCommandSource(commandId)).thenReturn(commandSource);
 
         AppUser appUser = Mockito.mock(AppUser.class);
+        when(appUser.getId()).thenReturn(1L);
+        when(commandSource.getMaker()).thenReturn(appUser);
         when(commandSourceService.saveInitialNewTransaction(commandWrapper, jsonCommand, appUser, idk)).thenReturn(commandSource);
         when(commandSourceService.saveResultSameTransaction(commandSource)).thenReturn(commandSource);
 
@@ -452,6 +464,64 @@ public class SynchronousCommandProcessingServiceTest {
 
         verify(commandSourceService).getCommandSource(commandId);
         verify(commandSourceService).generateErrorInfo(runtimeException);
+    }
+
+    @Test
+    public void crossUserIdempotencyReplayReturnsConflictWithoutCachedResult() {
+        CommandWrapper commandWrapper = getCommandWrapper();
+        JsonCommand jsonCommand = Mockito.mock(JsonCommand.class);
+        String idempotencyKey = "shared-synthetic-key";
+
+        AppUser currentUser = Mockito.mock(AppUser.class);
+        when(currentUser.getId()).thenReturn(2L);
+        AppUser originalMaker = Mockito.mock(AppUser.class);
+        when(originalMaker.getId()).thenReturn(1L);
+        when(context.authenticatedUser(commandWrapper)).thenReturn(currentUser);
+
+        CommandSource processedCommand = Mockito.mock(CommandSource.class);
+        when(processedCommand.getStatus()).thenReturn(CommandProcessingResultType.PROCESSED.getValue());
+        when(processedCommand.getMaker()).thenReturn(originalMaker);
+        when(processedCommand.getResultStatusCode()).thenReturn(200);
+        when(processedCommand.getResult()).thenReturn("{\"synthetic\":\"cached result\"}");
+        when(processedCommand.getIdempotencyKey()).thenReturn(idempotencyKey);
+        when(commandSourceService.getCommandSource(1L)).thenReturn(processedCommand);
+        when(request.getAttribute(SynchronousCommandProcessingService.COMMAND_SOURCE_ID)).thenReturn(1L);
+        when(commandSourceService.findCommandSource(commandWrapper, idempotencyKey)).thenReturn(processedCommand);
+
+        AbstractIdempotentCommandException exception = assertThrows(AbstractIdempotentCommandException.class,
+                () -> underTest.executeCommand(commandWrapper, jsonCommand, false));
+        Response response = new IdempotentCommandExceptionMapper().toResponse(exception);
+
+        assertEquals(409, response.getStatus());
+        assertTrue(!"{\"synthetic\":\"cached result\"}".equals(response.getEntity()));
+    }
+
+    @Test
+    public void sameUserIdempotencyReplayReturnsCachedResult() {
+        CommandWrapper commandWrapper = getCommandWrapper();
+        JsonCommand jsonCommand = Mockito.mock(JsonCommand.class);
+        String idempotencyKey = "same-user-synthetic-key";
+
+        AppUser user = Mockito.mock(AppUser.class);
+        when(user.getId()).thenReturn(1L);
+        when(context.authenticatedUser(commandWrapper)).thenReturn(user);
+
+        CommandSource processedCommand = Mockito.mock(CommandSource.class);
+        when(processedCommand.getStatus()).thenReturn(CommandProcessingResultType.PROCESSED.getValue());
+        when(processedCommand.getMaker()).thenReturn(user);
+        when(processedCommand.getResultStatusCode()).thenReturn(200);
+        when(processedCommand.getResult()).thenReturn("{\"synthetic\":\"cached result\"}");
+        when(processedCommand.getIdempotencyKey()).thenReturn(idempotencyKey);
+        when(commandSourceService.getCommandSource(1L)).thenReturn(processedCommand);
+        when(request.getAttribute(SynchronousCommandProcessingService.COMMAND_SOURCE_ID)).thenReturn(1L);
+        when(commandSourceService.findCommandSource(commandWrapper, idempotencyKey)).thenReturn(processedCommand);
+
+        AbstractIdempotentCommandException exception = assertThrows(AbstractIdempotentCommandException.class,
+                () -> underTest.executeCommand(commandWrapper, jsonCommand, false));
+        Response response = new IdempotentCommandExceptionMapper().toResponse(exception);
+
+        assertEquals(200, response.getStatus());
+        assertEquals("{\"synthetic\":\"cached result\"}", response.getEntity());
     }
 
     @NonNull

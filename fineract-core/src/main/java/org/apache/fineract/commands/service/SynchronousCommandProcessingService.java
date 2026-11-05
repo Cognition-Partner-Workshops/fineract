@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.domain.BatchRequestContextHolder;
 import org.apache.fineract.infrastructure.core.domain.FineractRequestContextHolder;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessConflictException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessFailedException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessSucceedException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessUnderProcessingException;
@@ -118,9 +120,8 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
             } else {
                 idempotencyKey = idempotencyKeyResolver.resolve(wrapper);
             }
-            exceptionWhenTheRequestAlreadyProcessed(wrapper, idempotencyKey, isRetry);
-
             AppUser user = context.authenticatedUser(wrapper);
+            exceptionWhenTheRequestAlreadyProcessed(wrapper, idempotencyKey, isRetry, user);
             if (commandSource == null) {
                 if (isEnclosingTransaction) {
                     commandSource = commandSourceService.getInitialCommandSource(wrapper, command, user, idempotencyKey);
@@ -218,10 +219,13 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
         }
     }
 
-    private void exceptionWhenTheRequestAlreadyProcessed(CommandWrapper wrapper, String idempotencyKey, boolean retry) {
+    private void exceptionWhenTheRequestAlreadyProcessed(CommandWrapper wrapper, String idempotencyKey, boolean retry, AppUser user) {
         CommandSource command = commandSourceService.findCommandSource(wrapper, idempotencyKey);
         if (command == null) {
             return;
+        }
+        if (command.getMaker() == null || !Objects.equals(command.getMaker().getId(), user.getId())) {
+            throw new IdempotentCommandProcessConflictException(wrapper, idempotencyKey);
         }
         CommandProcessingResultType status = CommandProcessingResultType.fromInt(command.getStatus());
         switch (status) {

@@ -31,6 +31,7 @@ public class OTPRequest {
 
     private String token;
     private OTPMetadata metadata;
+    private int failedAttempts;
 
     public static OTPRequest create(String token, int tokenLiveTimeInSec, boolean extendedAccessToken, OTPDeliveryMethod deliveryMethod) {
         final OTPMetadata metadata = new OTPMetadata()

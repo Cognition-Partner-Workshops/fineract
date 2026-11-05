@@ -49,6 +49,8 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty("fineract.security.2fa.enabled")
 public class TwoFactorServiceImpl implements TwoFactorService {
 
+    private static final int MAX_OTP_FAILED_ATTEMPTS = 5;
+
     private final AccessTokenGenerationService accessTokenGenerationService;
     private final PlatformEmailService emailService;
     private final SmsMessageScheduledJobService smsMessageScheduledJobService;
@@ -127,12 +129,10 @@ public class TwoFactorServiceImpl implements TwoFactorService {
             + ".getTenant().getTenantIdentifier().concat(#user.username).concat(#result.token + 'tok')")
     public TFAccessToken createAccessTokenFromOTP(final AppUser user, final String otpToken) {
 
-        OTPRequest otpRequest = otpRequestRepository.getOTPRequestForUser(user);
-        if (otpRequest == null || !otpRequest.isValid() || !otpRequest.getToken().equalsIgnoreCase(otpToken)) {
+        OTPRequest otpRequest = otpRequestRepository.consumeOTPRequestIfValid(user, otpToken, MAX_OTP_FAILED_ATTEMPTS);
+        if (otpRequest == null) {
             throw new OTPTokenInvalidException();
         }
-
-        otpRequestRepository.deleteOTPRequestForUser(user);
 
         String token = accessTokenGenerationService.generateRandomToken();
         int liveTime;

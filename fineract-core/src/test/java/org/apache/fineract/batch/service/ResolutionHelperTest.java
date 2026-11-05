@@ -31,6 +31,7 @@ import java.util.List;
 import org.apache.fineract.batch.domain.BatchRequest;
 import org.apache.fineract.batch.domain.BatchResponse;
 import org.apache.fineract.batch.exception.BatchReferenceInvalidException;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.junit.jupiter.api.Test;
 
@@ -75,6 +76,45 @@ public class ResolutionHelperTest {
         invalidRequest.setReference(1L);
         requests.add(invalidRequest);
         assertThrows(BatchReferenceInvalidException.class, () -> resolutionHelper.buildNodesTree(requests));
+    }
+
+    @Test
+    void buildNodesTreeRejectsMoreThanMaximumRequestCount() {
+        List<BatchRequest> requests = new ArrayList<>();
+        for (long requestId = 1; requestId <= 201; requestId++) {
+            BatchRequest request = new BatchRequest();
+            request.setRequestId(requestId);
+            request.setReference(requestId == 1 ? null : requestId - 1);
+            requests.add(request);
+        }
+
+        PlatformApiDataValidationException exception = assertThrows(PlatformApiDataValidationException.class,
+                () -> resolutionHelper.buildNodesTree(requests));
+
+        assertEquals("validation.msg.batch.request.limit.exceeded", exception.getErrors().get(0).getUserMessageGlobalisationCode());
+    }
+
+    @Test
+    void buildNodesTreeResolvesLongDependencyChain() {
+        List<BatchRequest> requests = new ArrayList<>();
+        for (long requestId = 1; requestId <= 200; requestId++) {
+            BatchRequest request = new BatchRequest();
+            request.setRequestId(requestId);
+            request.setReference(requestId == 1 ? null : requestId - 1);
+            requests.add(request);
+        }
+
+        List<ResolutionHelper.BatchRequestNode> roots = resolutionHelper.buildNodesTree(requests);
+
+        assertEquals(1, roots.size());
+        ResolutionHelper.BatchRequestNode node = roots.get(0);
+        for (long requestId = 1; requestId <= 200; requestId++) {
+            assertEquals(requestId, node.getRequest().getRequestId());
+            if (requestId < 200) {
+                assertEquals(1, node.getChildNodes().size());
+                node = node.getChildNodes().get(0);
+            }
+        }
     }
 
     @Test

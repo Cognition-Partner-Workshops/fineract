@@ -28,13 +28,16 @@ import com.jayway.jsonpath.ReadContext;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.batch.domain.BatchRequest;
 import org.apache.fineract.batch.domain.BatchResponse;
 import org.apache.fineract.batch.exception.BatchReferenceInvalidException;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -47,6 +50,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class ResolutionHelper {
+
+    private static final int DEFAULT_MAX_BATCH_REQUESTS = 200;
 
     /**
      * Provides a Node like object for the request tree.
@@ -79,6 +84,9 @@ public class ResolutionHelper {
 
     private final FromJsonHelper fromJsonHelper;
 
+    @Value("${fineract.batch.max-requests:200}")
+    private int maxBatchRequests = DEFAULT_MAX_BATCH_REQUESTS;
+
     /**
      * Returns a map containing requests that are divided in accordance of dependency relations among them. Each
      * different list is identified with a "Key" which is the "requestId" of the request at topmost level in dependency
@@ -88,33 +96,29 @@ public class ResolutionHelper {
      * @return List&lt;ArrayList&lt;BatchRequestNode&gt;&gt;
      */
     public List<BatchRequestNode> buildNodesTree(final List<BatchRequest> requests) {
+        if (requests.size() > maxBatchRequests) {
+            throw new PlatformApiDataValidationException("validation.msg.batch.request.limit.exceeded",
+                    "Batch requests cannot exceed {0} items", "requests", maxBatchRequests);
+        }
+
         final List<BatchRequestNode> rootNodes = new ArrayList<>();
+        final Map<Long, BatchRequestNode> nodesByRequestId = new HashMap<>(requests.size());
         for (BatchRequest request : requests) {
             if (request.getReference() == null) {
                 final BatchRequestNode node = new BatchRequestNode(request);
                 rootNodes.add(node);
+                nodesByRequestId.putIfAbsent(request.getRequestId(), node);
             } else {
-                if (!addDependingRequest(request, rootNodes)) {
+                BatchRequestNode parentNode = nodesByRequestId.get(request.getReference());
+                if (parentNode == null) {
                     throw new BatchReferenceInvalidException(request.getReference());
                 }
+                BatchRequestNode childNode = new BatchRequestNode(request);
+                parentNode.addChildNode(childNode);
+                nodesByRequestId.putIfAbsent(request.getRequestId(), childNode);
             }
         }
         return rootNodes;
-    }
-
-    private boolean addDependingRequest(final BatchRequest request, final List<BatchRequestNode> parentNodes) {
-        for (BatchRequestNode parentNode : parentNodes) {
-            if (parentNode.getRequest().getRequestId().equals(request.getReference())) {
-                final BatchRequestNode childNode = new BatchRequestNode(request);
-                parentNode.addChildNode(childNode);
-                return true;
-            } else {
-                if (addDependingRequest(request, parentNode.getChildNodes())) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /**
