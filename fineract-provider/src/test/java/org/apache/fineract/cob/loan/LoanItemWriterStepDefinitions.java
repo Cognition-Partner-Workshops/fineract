@@ -26,14 +26,14 @@ import io.cucumber.java8.En;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
 import org.mockito.Mockito;
-import org.springframework.batch.item.Chunk;
+import org.springframework.batch.infrastructure.item.Chunk;
 
 public class LoanItemWriterStepDefinitions implements En {
 
     private final LoanLockingService loanLockingService = mock(LoanLockingService.class);
     private final LoanRepository loanRepository = mock(LoanRepository.class);
 
-    private final LoanItemWriter loanItemWriter = new LoanItemWriter(loanLockingService);
+    private final LoanItemWriter loanItemWriter = new LoanItemWriter(loanLockingService, loanRepository);
 
     private Chunk<Loan> items;
 

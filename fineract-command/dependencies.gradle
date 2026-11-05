@@ -19,6 +19,9 @@
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-jackson2'
+    testImplementation 'org.springframework.boot:spring-boot-starter-restclient'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.boot:spring-boot-resttestclient'
     implementation 'org.springframework.boot:spring-boot-starter-liquibase'
     implementation(
             'org.springframework.boot:spring-boot-starter',
@@ -64,13 +67,11 @@ dependencies {
     testImplementation (
             project(':fineract-validation'),
             'org.springframework.boot:spring-boot-starter-webmvc',
-            'org.mockito:mockito-inline',
             'org.openjdk.jmh:jmh-core',
             'org.testcontainers:testcontainers-junit-jupiter',
             'org.testcontainers:testcontainers-postgresql',
             'org.testcontainers:testcontainers-mysql',
             'org.springframework.restdocs:spring-restdocs-mockmvc',
             'org.springframework.restdocs:spring-restdocs-webtestclient',
-            'org.springframework.restdocs:spring-restdocs-restassured',
             )
 }
