@@ -30,6 +30,7 @@ import org.apache.fineract.portfolio.delinquency.helper.DelinquencyEffectivePaus
 import org.apache.fineract.portfolio.delinquency.mapper.DelinquencyBucketMapper;
 import org.apache.fineract.portfolio.delinquency.mapper.DelinquencyRangeMapper;
 import org.apache.fineract.portfolio.delinquency.mapper.LoanDelinquencyTagMapper;
+import org.apache.fineract.portfolio.delinquency.service.CumulativePossibleNextRepaymentCalculationServiceImpl;
 import org.apache.fineract.portfolio.delinquency.service.DelinquencyReadPlatformService;
 import org.apache.fineract.portfolio.delinquency.service.DelinquencyReadPlatformServiceImpl;
 import org.apache.fineract.portfolio.delinquency.service.DelinquencyWritePlatformService;
@@ -52,6 +53,12 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class DelinquencyConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(CumulativePossibleNextRepaymentCalculationServiceImpl.class)
+    public CumulativePossibleNextRepaymentCalculationServiceImpl cumulativePossibleNextRepaymentCalculationService() {
+        return new CumulativePossibleNextRepaymentCalculationServiceImpl();
+    }
 
     @Bean
     @ConditionalOnMissingBean(DelinquencyReadPlatformService.class)
