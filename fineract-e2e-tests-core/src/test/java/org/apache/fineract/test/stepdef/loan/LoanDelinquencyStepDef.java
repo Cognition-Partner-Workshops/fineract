@@ -50,6 +50,7 @@ import org.apache.fineract.client.models.PostLoansDelinquencyActionRequest;
 import org.apache.fineract.client.models.PostLoansDelinquencyActionResponse;
 import org.apache.fineract.client.models.PostLoansResponse;
 import org.apache.fineract.test.api.ApiProperties;
+import org.apache.fineract.test.api.InsecureTestTls;
 import org.apache.fineract.test.data.DelinquencyRange;
 import org.apache.fineract.test.data.LoanStatus;
 import org.apache.fineract.test.helper.ErrorMessageHelper;
@@ -88,7 +89,8 @@ public class LoanDelinquencyStepDef extends AbstractStepDef {
         String apiBaseUrl = baseUrl + "/fineract-provider/api/";
 
         return FineractFeignClient.builder().baseUrl(apiBaseUrl).credentials(username, password).tenantId(tenantId)
-                .disableSslVerification(true).connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .sslContext(InsecureTestTls.SSL_CONTEXT).trustManager(InsecureTestTls.TRUST_MANAGER)
+                .hostnameVerifier(InsecureTestTls.HOSTNAME_VERIFIER).connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout((int) readTimeout, java.util.concurrent.TimeUnit.SECONDS).build();
     }
 

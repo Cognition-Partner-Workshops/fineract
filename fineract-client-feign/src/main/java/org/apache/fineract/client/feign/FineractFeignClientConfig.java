@@ -27,10 +27,13 @@ import feign.hc5.ApacheHttp5Client;
 import feign.jackson.JacksonDecoder;
 import feign.jackson.JacksonEncoder;
 import feign.slf4j.Slf4jLogger;
-import java.security.cert.X509Certificate;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import org.apache.fineract.client.feign.support.ApiResponseDecoder;
 import org.apache.hc.client5.http.config.RequestConfig;
@@ -61,7 +64,9 @@ public final class FineractFeignClientConfig {
     private final boolean debugEnabled;
     private final long connectionTimeToLive;
     private final TimeUnit connectionTimeToLiveUnit;
-    private final boolean disableSslVerification;
+    private final SSLContext sslContext;
+    private final X509TrustManager trustManager;
+    private final HostnameVerifier hostnameVerifier;
     private final int maxConnTotal;
     private final int maxConnPerRoute;
     private final long idleConnectionEvictionTime;
@@ -79,7 +84,9 @@ public final class FineractFeignClientConfig {
         this.debugEnabled = builder.debugEnabled;
         this.connectionTimeToLive = builder.connectionTimeToLive;
         this.connectionTimeToLiveUnit = builder.connectionTimeToLiveUnit;
-        this.disableSslVerification = builder.disableSslVerification;
+        this.sslContext = builder.sslContext;
+        this.trustManager = builder.trustManager;
+        this.hostnameVerifier = builder.hostnameVerifier;
         this.maxConnTotal = builder.maxConnTotal;
         this.maxConnPerRoute = builder.maxConnPerRoute;
         this.idleConnectionEvictionTime = builder.idleConnectionEvictionTime;
@@ -131,9 +138,9 @@ public final class FineractFeignClientConfig {
             PoolingHttpClientConnectionManagerBuilder connManagerBuilder = PoolingHttpClientConnectionManagerBuilder.create()
                     .setMaxConnTotal(maxConnTotal).setMaxConnPerRoute(maxConnPerRoute);
 
-            if (disableSslVerification) {
-                SSLContext sslContext = createTrustAllSslContext();
-                SSLConnectionSocketFactory sslSocketFactory = SSLConnectionSocketFactoryBuilder.create().setSslContext(sslContext).build();
+            if (sslContext != null || hostnameVerifier != null) {
+                SSLConnectionSocketFactory sslSocketFactory = SSLConnectionSocketFactoryBuilder.create().setSslContext(sslContext)
+                        .setHostnameVerifier(hostnameVerifier).build();
                 connManagerBuilder.setSSLSocketFactory(sslSocketFactory);
             }
 
@@ -162,40 +169,17 @@ public final class FineractFeignClientConfig {
                     .connectionPool(new okhttp3.ConnectionPool(maxConnTotal, connectionTimeToLive > 0 ? connectionTimeToLive : 5,
                             connectionTimeToLive > 0 ? connectionTimeToLiveUnit : TimeUnit.MINUTES));
 
-            if (disableSslVerification) {
-                SSLContext sslContext = createTrustAllSslContext();
-                builder.sslSocketFactory(sslContext.getSocketFactory(), createTrustAllManager());
-                builder.hostnameVerifier((hostname, session) -> true);
+            if (sslContext != null) {
+                builder.sslSocketFactory(sslContext.getSocketFactory(), trustManager);
+            }
+            if (hostnameVerifier != null) {
+                builder.hostnameVerifier(hostnameVerifier);
             }
 
             return new feign.okhttp.OkHttpClient(builder.build());
         } catch (Exception e) {
             throw new RuntimeException("Failed to create OkHttp client", e);
         }
-    }
-
-    private X509TrustManager createTrustAllManager() {
-        return new X509TrustManager() {
-
-            @Override
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-
-            @Override
-            public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-
-            @Override
-            public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-        };
-    }
-
-    private SSLContext createTrustAllSslContext() throws Exception {
-        TrustManager[] trustAllCerts = new TrustManager[] { createTrustAllManager() };
-
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
-        return sslContext;
     }
 
     public static class Builder {
@@ -209,7 +193,9 @@ public final class FineractFeignClientConfig {
         private boolean debugEnabled = false;
         private long connectionTimeToLive = -1;
         private TimeUnit connectionTimeToLiveUnit = TimeUnit.MILLISECONDS;
-        private boolean disableSslVerification = false;
+        private SSLContext sslContext;
+        private X509TrustManager trustManager;
+        private HostnameVerifier hostnameVerifier;
         private int maxConnTotal = 200;
         private int maxConnPerRoute = 20;
         private long idleConnectionEvictionTime = 30;
@@ -253,8 +239,40 @@ public final class FineractFeignClientConfig {
             return this;
         }
 
-        public Builder disableSslVerification(boolean disableSslVerification) {
-            this.disableSslVerification = disableSslVerification;
+        /**
+         * Sets the TLS context. Supply its matching trust manager as well.
+         */
+        public Builder sslContext(SSLContext sslContext) {
+            this.sslContext = Objects.requireNonNull(sslContext);
+            return this;
+        }
+
+        public Builder trustManager(X509TrustManager trustManager) {
+            this.trustManager = Objects.requireNonNull(trustManager);
+            return this;
+        }
+
+        public Builder hostnameVerifier(HostnameVerifier hostnameVerifier) {
+            this.hostnameVerifier = Objects.requireNonNull(hostnameVerifier);
+            return this;
+        }
+
+        public Builder trustStore(KeyStore trustStore) {
+            Objects.requireNonNull(trustStore);
+            try {
+                trustStore.size();
+                TrustManagerFactory factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                factory.init(trustStore);
+                X509TrustManager manager = java.util.Arrays.stream(factory.getTrustManagers()).filter(X509TrustManager.class::isInstance)
+                        .map(X509TrustManager.class::cast).findFirst()
+                        .orElseThrow(() -> new IllegalStateException("No X509 trust manager available"));
+                SSLContext context = SSLContext.getInstance("TLS");
+                context.init(null, new javax.net.ssl.TrustManager[] { manager }, null);
+                this.sslContext = context;
+                this.trustManager = manager;
+            } catch (GeneralSecurityException e) {
+                throw new IllegalArgumentException("Cannot initialize TLS trust store", e);
+            }
             return this;
         }
 
@@ -280,6 +298,9 @@ public final class FineractFeignClientConfig {
         }
 
         public FineractFeignClientConfig build() {
+            if ((sslContext == null) != (trustManager == null)) {
+                throw new IllegalStateException("sslContext and its matching trustManager must be supplied together");
+            }
             if (baseUrl == null || baseUrl.trim().isEmpty()) {
                 throw new IllegalStateException("baseUrl is required");
             }

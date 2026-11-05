@@ -18,6 +18,10 @@
  */
 package org.apache.fineract.client.feign;
 
+import java.security.KeyStore;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.X509TrustManager;
 import org.apache.fineract.client.feign.services.AccountNumberFormatApi;
 import org.apache.fineract.client.feign.services.AccountTransfersApi;
 import org.apache.fineract.client.feign.services.AccountingClosureApi;
@@ -909,15 +913,23 @@ public final class FineractFeignClient {
             return this;
         }
 
-        /**
-         * Disables SSL certificate verification. Use only for testing with self-signed certificates.
-         *
-         * @param disable
-         *            true to disable SSL verification, false to enable
-         * @return This builder instance
-         */
-        public Builder disableSslVerification(boolean disable) {
-            configBuilder.disableSslVerification(disable);
+        public Builder sslContext(SSLContext sslContext) {
+            configBuilder.sslContext(sslContext);
+            return this;
+        }
+
+        public Builder trustManager(X509TrustManager trustManager) {
+            configBuilder.trustManager(trustManager);
+            return this;
+        }
+
+        public Builder hostnameVerifier(HostnameVerifier hostnameVerifier) {
+            configBuilder.hostnameVerifier(hostnameVerifier);
+            return this;
+        }
+
+        public Builder trustStore(KeyStore trustStore) {
+            configBuilder.trustStore(trustStore);
             return this;
         }
 
