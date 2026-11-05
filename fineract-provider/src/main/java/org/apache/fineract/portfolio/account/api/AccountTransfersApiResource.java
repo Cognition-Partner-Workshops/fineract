@@ -84,7 +84,7 @@ public class AccountTransfersApiResource {
             officeScopeValidator.validateOffice(accountTransSearchParam.getToOfficeId());
         }
 
-        return accountTransfersReadPlatformService.retrieveTemplate(accountTransSearchParam.getFromAccountId(),
+        return accountTransfersReadPlatformService.retrieveTemplate(accountTransSearchParam.getFromOfficeId(),
                 accountTransSearchParam.getFromClientId(), accountTransSearchParam.getFromAccountId(),
                 accountTransSearchParam.getFromAccountType(), accountTransSearchParam.getToOfficeId(),
                 accountTransSearchParam.getToClientId(), accountTransSearchParam.getToAccountId(),
@@ -150,7 +150,13 @@ public class AccountTransfersApiResource {
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = AccountTransfersApiResourceSwagger.GetAccountTransfersTemplateRefundByTransferResponse.class))) })
     public AccountTransferData templateRefundByTransfer(@BeanParam AccountTransSearchParam accountTransSearchParam) {
         context.authenticatedUser().validateHasReadPermission(AccountTransfersApiConstants.ACCOUNT_TRANSFER_RESOURCE_NAME);
-        return accountTransfersReadPlatformService.retrieveRefundByTransferTemplate(accountTransSearchParam.getFromAccountId(),
+        if (accountTransSearchParam.getFromOfficeId() != null) {
+            officeScopeValidator.validateOffice(accountTransSearchParam.getFromOfficeId());
+        }
+        if (accountTransSearchParam.getToOfficeId() != null) {
+            officeScopeValidator.validateOffice(accountTransSearchParam.getToOfficeId());
+        }
+        return accountTransfersReadPlatformService.retrieveRefundByTransferTemplate(accountTransSearchParam.getFromOfficeId(),
                 accountTransSearchParam.getFromClientId(), accountTransSearchParam.getFromAccountId(),
                 accountTransSearchParam.getFromAccountType(), accountTransSearchParam.getToOfficeId(),
                 accountTransSearchParam.getToClientId(), accountTransSearchParam.getToAccountId(),

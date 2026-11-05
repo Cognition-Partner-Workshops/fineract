@@ -135,4 +135,37 @@ class RoleWritePlatformServiceSecurityTest {
         verify(caller).validateHasPermissionTo("grant role permission", List.of("READ_CLIENT"));
         verify(roleRepository).saveAndFlush(targetRole);
     }
+
+    @Test
+    void permitsAllFunctionsAdminGrantingSpecialPermissionToRoleTheyDoNotHold() {
+        when(context.authenticatedUser()).thenReturn(caller);
+        when(caller.getRoles()).thenReturn(Set.of());
+        when(caller.hasAnyPermission("ALL_FUNCTIONS")).thenReturn(true);
+        when(roleRepository.findById(ROLE_ID)).thenReturn(Optional.of(targetRole));
+        when(permissionRepository.findAll()).thenReturn(List.of(permission));
+        when(permission.hasCode("SPECIAL_PERMISSION")).thenReturn(true);
+        when(permission.getGrouping()).thenReturn("special");
+        when(permission.getCode()).thenReturn("SPECIAL_PERMISSION");
+        when(command.json()).thenReturn("{\"permissions\":{}}");
+        when(command.commandId()).thenReturn(23L);
+        when(permissionsDeserializer.commandFromApiJson(command.json()))
+                .thenReturn(new PermissionsCommand(Map.of("SPECIAL_PERMISSION", true)));
+        when(targetRole.updatePermission(permission, true)).thenReturn(true);
+
+        assertDoesNotThrow(() -> underTest.updateRolePermissions(ROLE_ID, command));
+
+        verify(caller).validateHasPermissionTo("grant role permission", List.of("SPECIAL_PERMISSION"));
+        verify(roleRepository).saveAndFlush(targetRole);
+    }
+
+    @Test
+    void rejectsAllFunctionsAdminEditingRoleTheyHold() {
+        when(context.authenticatedUser()).thenReturn(caller);
+        when(caller.getRoles()).thenReturn(Set.of(targetRole));
+        lenient().when(caller.hasAnyPermission("ALL_FUNCTIONS")).thenReturn(true);
+        when(targetRole.getId()).thenReturn(ROLE_ID);
+        when(roleRepository.findById(ROLE_ID)).thenReturn(Optional.of(targetRole));
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.updateRolePermissions(ROLE_ID, command));
+    }
 }

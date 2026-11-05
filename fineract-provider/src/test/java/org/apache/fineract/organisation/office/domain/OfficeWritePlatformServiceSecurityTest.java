@@ -144,6 +144,60 @@ class OfficeWritePlatformServiceSecurityTest {
     }
 
     @Test
+    void permitsDeleteWithOnlySourceOfficeInScope() {
+        final OfficeTransaction transaction = officeTransaction(USER_OFFICE_ID, null);
+        when(officeTransactionRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(transaction));
+
+        assertDoesNotThrow(() -> underTest.deleteOfficeTransaction(TRANSACTION_ID, JsonCommand.from("{}")));
+
+        verify(officeScopeValidator).validateOffice(USER_OFFICE_ID);
+        verify(officeTransactionRepository).delete(transaction);
+    }
+
+    @Test
+    void rejectsDeleteWithOnlyForeignSourceOffice() {
+        final OfficeTransaction transaction = officeTransaction(FOREIGN_OFFICE_ID, null);
+        when(officeTransactionRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(transaction));
+        doThrow(new NoAuthorizationException("outside office scope")).when(officeScopeValidator).validateOffice(FOREIGN_OFFICE_ID);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.deleteOfficeTransaction(TRANSACTION_ID, JsonCommand.from("{}")));
+
+        verify(officeTransactionRepository, never()).delete(transaction);
+    }
+
+    @Test
+    void permitsDeleteWithOnlyDestinationOfficeInScope() {
+        final OfficeTransaction transaction = officeTransaction(null, USER_OFFICE_ID);
+        when(officeTransactionRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(transaction));
+
+        assertDoesNotThrow(() -> underTest.deleteOfficeTransaction(TRANSACTION_ID, JsonCommand.from("{}")));
+
+        verify(officeScopeValidator).validateOffice(USER_OFFICE_ID);
+        verify(officeTransactionRepository).delete(transaction);
+    }
+
+    @Test
+    void rejectsDeleteWithOnlyForeignDestinationOffice() {
+        final OfficeTransaction transaction = officeTransaction(null, FOREIGN_OFFICE_ID);
+        when(officeTransactionRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(transaction));
+        doThrow(new NoAuthorizationException("outside office scope")).when(officeScopeValidator).validateOffice(FOREIGN_OFFICE_ID);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.deleteOfficeTransaction(TRANSACTION_ID, JsonCommand.from("{}")));
+
+        verify(officeTransactionRepository, never()).delete(transaction);
+    }
+
+    @Test
+    void rejectsDeleteWhenBothOfficesAreNull() {
+        final OfficeTransaction transaction = officeTransaction(null, null);
+        when(officeTransactionRepository.findById(TRANSACTION_ID)).thenReturn(Optional.of(transaction));
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.deleteOfficeTransaction(TRANSACTION_ID, JsonCommand.from("{}")));
+
+        verify(officeTransactionRepository, never()).delete(transaction);
+    }
+
+    @Test
     void missingDeleteUsesOfficeTransactionNotFoundException() {
         when(officeTransactionRepository.findById(TRANSACTION_ID)).thenReturn(Optional.empty());
 
@@ -159,8 +213,8 @@ class OfficeWritePlatformServiceSecurityTest {
 
     private OfficeTransaction officeTransaction(final Long fromOfficeId, final Long toOfficeId) {
         final OfficeTransaction transaction = new OfficeTransaction();
-        ReflectionTestUtils.setField(transaction, "from", office(fromOfficeId));
-        ReflectionTestUtils.setField(transaction, "to", office(toOfficeId));
+        ReflectionTestUtils.setField(transaction, "from", fromOfficeId == null ? null : office(fromOfficeId));
+        ReflectionTestUtils.setField(transaction, "to", toOfficeId == null ? null : office(toOfficeId));
         return transaction;
     }
 

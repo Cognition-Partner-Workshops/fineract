@@ -18,8 +18,11 @@
  */
 package org.apache.fineract.portfolio.account.api;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -35,6 +38,7 @@ import org.apache.fineract.useradministration.domain.AppUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +47,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class AccountTransfersApiResourceSecurityTest {
 
     private static final Long OFFICE_ID = 23L;
+    private static final Long ACCOUNT_ID = 42L;
 
     @Mock
     private PlatformSecurityContext context;
@@ -82,5 +87,59 @@ class AccountTransfersApiResourceSecurityTest {
         assertNull(underTest.template(searchParam));
 
         verify(officeScopeValidator).validateOffice(OFFICE_ID);
+    }
+
+    @Test
+    void permitsTemplateLookupUsingValidatedFromOfficeId() {
+        final AccountTransSearchParam searchParam = new AccountTransSearchParam();
+        searchParam.setFromOfficeId(OFFICE_ID);
+        searchParam.setFromAccountId(ACCOUNT_ID);
+
+        assertNull(underTest.template(searchParam));
+
+        final ArgumentCaptor<Long> fromOfficeId = ArgumentCaptor.forClass(Long.class);
+        verify(accountTransfersReadPlatformService).retrieveTemplate(fromOfficeId.capture(), isNull(), eq(ACCOUNT_ID), isNull(), isNull(),
+                isNull(), isNull(), isNull());
+        assertEquals(OFFICE_ID, fromOfficeId.getValue());
+        verify(officeScopeValidator).validateOffice(OFFICE_ID);
+    }
+
+    @Test
+    void rejectsTemplateLookupForFromOfficeOutsideUserScope() {
+        final AccountTransSearchParam searchParam = new AccountTransSearchParam();
+        searchParam.setFromOfficeId(OFFICE_ID);
+        searchParam.setFromAccountId(ACCOUNT_ID);
+        doThrow(new NoAuthorizationException("outside office scope")).when(officeScopeValidator).validateOffice(OFFICE_ID);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.template(searchParam));
+
+        verifyNoInteractions(accountTransfersReadPlatformService);
+    }
+
+    @Test
+    void permitsRefundTemplateLookupUsingValidatedFromOfficeId() {
+        final AccountTransSearchParam searchParam = new AccountTransSearchParam();
+        searchParam.setFromOfficeId(OFFICE_ID);
+        searchParam.setFromAccountId(ACCOUNT_ID);
+
+        assertNull(underTest.templateRefundByTransfer(searchParam));
+
+        final ArgumentCaptor<Long> fromOfficeId = ArgumentCaptor.forClass(Long.class);
+        verify(accountTransfersReadPlatformService).retrieveRefundByTransferTemplate(fromOfficeId.capture(), isNull(), eq(ACCOUNT_ID),
+                isNull(), isNull(), isNull(), isNull(), isNull());
+        assertEquals(OFFICE_ID, fromOfficeId.getValue());
+        verify(officeScopeValidator).validateOffice(OFFICE_ID);
+    }
+
+    @Test
+    void rejectsRefundTemplateLookupForFromOfficeOutsideUserScope() {
+        final AccountTransSearchParam searchParam = new AccountTransSearchParam();
+        searchParam.setFromOfficeId(OFFICE_ID);
+        searchParam.setFromAccountId(ACCOUNT_ID);
+        doThrow(new NoAuthorizationException("outside office scope")).when(officeScopeValidator).validateOffice(OFFICE_ID);
+
+        assertThrows(NoAuthorizationException.class, () -> underTest.templateRefundByTransfer(searchParam));
+
+        verifyNoInteractions(accountTransfersReadPlatformService);
     }
 }

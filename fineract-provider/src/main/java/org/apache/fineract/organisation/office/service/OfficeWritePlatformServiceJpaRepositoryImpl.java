@@ -204,8 +204,15 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
 
         final OfficeTransaction officeTransaction = this.officeTransactionRepository.findById(transactionId)
                 .orElseThrow(() -> new OfficeTransactionNotFoundException(transactionId));
-        this.officeScopeValidator.validateOffice(officeTransaction.fromOffice().getId());
-        this.officeScopeValidator.validateOffice(officeTransaction.toOffice().getId());
+        if (officeTransaction.fromOffice() == null && officeTransaction.toOffice() == null) {
+            throw new NoAuthorizationException("Office transaction has no source or destination office");
+        }
+        if (officeTransaction.fromOffice() != null) {
+            this.officeScopeValidator.validateOffice(officeTransaction.fromOffice().getId());
+        }
+        if (officeTransaction.toOffice() != null) {
+            this.officeScopeValidator.validateOffice(officeTransaction.toOffice().getId());
+        }
         this.officeTransactionRepository.delete(officeTransaction);
 
         return new CommandProcessingResultBuilder() //
