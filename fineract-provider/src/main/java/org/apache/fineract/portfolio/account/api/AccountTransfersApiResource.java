@@ -43,6 +43,7 @@ import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSerializer;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.account.data.AccountTransferData;
 import org.apache.fineract.portfolio.account.data.request.AccountTransSearchParam;
@@ -57,6 +58,7 @@ import org.springframework.stereotype.Component;
 public class AccountTransfersApiResource {
 
     private final PlatformSecurityContext context;
+    private final OfficeScopeValidator officeScopeValidator;
     private final DefaultToApiJsonSerializer<AccountTransferData> toApiJsonSerializer;
     private final PortfolioCommandSourceWritePlatformService commandsSourceWritePlatformService;
     private final AccountTransfersReadPlatformService accountTransfersReadPlatformService;
@@ -75,6 +77,12 @@ public class AccountTransfersApiResource {
     public AccountTransferData template(@BeanParam AccountTransSearchParam accountTransSearchParam) {
 
         context.authenticatedUser().validateHasReadPermission(AccountTransfersApiConstants.ACCOUNT_TRANSFER_RESOURCE_NAME);
+        if (accountTransSearchParam.getFromOfficeId() != null) {
+            officeScopeValidator.validateOffice(accountTransSearchParam.getFromOfficeId());
+        }
+        if (accountTransSearchParam.getToOfficeId() != null) {
+            officeScopeValidator.validateOffice(accountTransSearchParam.getToOfficeId());
+        }
 
         return accountTransfersReadPlatformService.retrieveTemplate(accountTransSearchParam.getFromAccountId(),
                 accountTransSearchParam.getFromClientId(), accountTransSearchParam.getFromAccountId(),

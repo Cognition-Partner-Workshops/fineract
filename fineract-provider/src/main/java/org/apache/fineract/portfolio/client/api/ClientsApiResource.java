@@ -61,6 +61,7 @@ import org.apache.fineract.infrastructure.core.service.CommandParameterUtil;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.SearchParameters;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlValidator;
 import org.apache.fineract.portfolio.accountdetails.data.AccountSummaryCollectionData;
@@ -96,6 +97,7 @@ public class ClientsApiResource {
     private final BulkImportWorkbookService bulkImportWorkbookService;
     private final BulkImportWorkbookPopulatorService bulkImportWorkbookPopulatorService;
     private final GuarantorReadPlatformService guarantorReadPlatformService;
+    private final OfficeScopeValidator officeScopeValidator;
     private final SqlValidator sqlValidator;
 
     @GET
@@ -591,6 +593,7 @@ public class ClientsApiResource {
 
         ExternalId clientExternalId = ExternalIdFactory.produce(externalId);
         clientId = getResolvedClientId(clientId, clientExternalId);
+        officeScopeValidator.validateClient(clientId);
 
         final List<ObligeeData> ObligeeList = guarantorReadPlatformService.retrieveObligeeDetails(clientId);
         return toApiJsonSerializer.serialize(ObligeeList);
@@ -601,6 +604,7 @@ public class ClientsApiResource {
 
         ExternalId clientExternalId = ExternalIdFactory.produce(externalId);
         clientId = getResolvedClientId(clientId, clientExternalId);
+        officeScopeValidator.validateClient(clientId);
 
         final LocalDate transferDate = clientReadPlatformService.retrieveClientTransferProposalDate(clientId);
         return toApiJsonSerializer.serialize(transferDate);
