@@ -138,6 +138,7 @@ public class SendAsynchronousEventsTasklet implements Tasklet {
             try {
                 task.get();
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 log.error("Interrupted while marking events as sent", e);
             } catch (ExecutionException e) {
                 log.error("Exception while marking events as sent", e);

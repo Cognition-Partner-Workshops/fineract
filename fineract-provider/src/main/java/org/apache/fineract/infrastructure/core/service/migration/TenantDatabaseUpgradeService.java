@@ -154,7 +154,10 @@ public class TenantDatabaseUpgradeService implements InitializingBean {
             for (Future<String> future : futures) {
                 future.get();
             }
-        } catch (InterruptedException | ExecutionException exception) {
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            exceptions.add(exception);
+        } catch (ExecutionException exception) {
             exceptions.add(exception);
         } finally {
             tenantUpgradeThreadPoolTaskExecutor.shutdown();

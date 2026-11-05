@@ -20,7 +20,11 @@ package org.apache.fineract.infrastructure.event.external.jobs;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.apache.fineract.avro.MessageV1;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
@@ -66,6 +71,7 @@ import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -247,5 +253,30 @@ class SendAsynchronousEventsTaskletTest {
         Mockito.when(result.getIdempotencyKey()).thenReturn(idempotencyKey);
         Mockito.when(result.getAggregateRootId()).thenReturn(aggregateRootId);
         return result;
+    }
+
+    @AfterEach
+    void clearInterrupt() {
+        Thread.interrupted();
+    }
+
+    @Test
+    void restoresInterruptFlag() throws Exception {
+        Future<?> future = mock(Future.class);
+        InterruptedException interruption = new InterruptedException("interrupted");
+        when(future.get()).thenThrow(interruption);
+        SendAsynchronousEventsTasklet service = mock(SendAsynchronousEventsTasklet.class, CALLS_REAL_METHODS);
+        FineractProperties properties = new FineractProperties();
+        FineractProperties.FineractEventsProperties events = new FineractProperties.FineractEventsProperties();
+        FineractProperties.FineractExternalEventsProperties external = new FineractProperties.FineractExternalEventsProperties();
+        external.setPartitionSize(1);
+        events.setExternal(external);
+        properties.setEvents(events);
+        ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
+        when(executor.submit(any(Runnable.class))).thenReturn((Future) future);
+        ReflectionTestUtils.setField(service, "fineractProperties", properties);
+        ReflectionTestUtils.setField(service, "threadPoolTaskExecutor", executor);
+        ReflectionTestUtils.invokeMethod(service, "markEventsAsSent", List.of(1L));
+        assertTrue(Thread.interrupted());
     }
 }
