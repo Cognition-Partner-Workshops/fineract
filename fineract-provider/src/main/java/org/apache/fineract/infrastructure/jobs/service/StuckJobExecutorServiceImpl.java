@@ -95,6 +95,9 @@ public class StuckJobExecutorServiceImpl implements StuckJobExecutorService {
                 }
             });
             jobOperator.restart(stuckJobId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Exception while handling a stuck job", e);
         } catch (Exception e) {
             throw new RuntimeException("Exception while handling a stuck job", e);
         }

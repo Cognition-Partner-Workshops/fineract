@@ -49,6 +49,7 @@ import org.apache.fineract.client.models.PostLoansLoanIdTransactionsResponse;
 import org.apache.fineract.client.models.PostLoansLoanIdTransactionsTransactionIdRequest;
 import org.apache.fineract.client.models.PostLoansResponse;
 import org.apache.fineract.client.models.PostUsersResponse;
+import org.apache.fineract.test.api.InsecureTestTls;
 import org.apache.fineract.test.data.TransactionType;
 import org.apache.fineract.test.data.paymenttype.DefaultPaymentType;
 import org.apache.fineract.test.data.paymenttype.PaymentTypeResolver;
@@ -149,7 +150,9 @@ public class LoanRepaymentStepDef extends AbstractStepDef {
 
         String apiBaseUrl = apiProperties.getBaseUrl() + "/fineract-provider/api/";
         FineractFeignClient userClient = FineractFeignClient.builder().baseUrl(apiBaseUrl)
-                .credentials(user.getUsername(), PWD_USER_WITH_ROLE).tenantId(apiProperties.getTenantId()).disableSslVerification(true)
+                .credentials(user.getUsername(), PWD_USER_WITH_ROLE).tenantId(apiProperties.getTenantId())
+                .sslContext(InsecureTestTls.SSL_CONTEXT).trustManager(InsecureTestTls.TRUST_MANAGER)
+                .hostnameVerifier(InsecureTestTls.HOSTNAME_VERIFIER)
                 .readTimeout((int) apiProperties.getReadTimeout(), java.util.concurrent.TimeUnit.SECONDS).build();
 
         PostLoansLoanIdTransactionsResponse repaymentResponse = ok(() -> userClient.loanTransactions().executeLoanTransaction(loanId,
@@ -204,7 +207,9 @@ public class LoanRepaymentStepDef extends AbstractStepDef {
 
         String apiBaseUrl = apiProperties.getBaseUrl() + "/fineract-provider/api/";
         FineractFeignClient userClient = FineractFeignClient.builder().baseUrl(apiBaseUrl)
-                .credentials(user.getUsername(), PWD_USER_WITH_ROLE).tenantId(apiProperties.getTenantId()).disableSslVerification(true)
+                .credentials(user.getUsername(), PWD_USER_WITH_ROLE).tenantId(apiProperties.getTenantId())
+                .sslContext(InsecureTestTls.SSL_CONTEXT).trustManager(InsecureTestTls.TRUST_MANAGER)
+                .hostnameVerifier(InsecureTestTls.HOSTNAME_VERIFIER)
                 .readTimeout((int) apiProperties.getReadTimeout(), java.util.concurrent.TimeUnit.SECONDS).build();
 
         PostLoansLoanIdTransactionsResponse repaymentResponse = ok(() -> userClient.loanTransactions()

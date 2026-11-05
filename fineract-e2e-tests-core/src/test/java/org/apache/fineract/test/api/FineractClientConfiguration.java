@@ -43,7 +43,8 @@ public class FineractClientConfiguration {
         boolean debugEnabled = Boolean.parseBoolean(System.getProperty("fineract.feign.debug", "false"));
 
         return FineractFeignClient.builder().baseUrl(apiBaseUrl).credentials(username, password).tenantId(tenantId)
-                .disableSslVerification(true).debug(debugEnabled).connectTimeout(60, TimeUnit.SECONDS)
+                .sslContext(InsecureTestTls.SSL_CONTEXT).trustManager(InsecureTestTls.TRUST_MANAGER)
+                .hostnameVerifier(InsecureTestTls.HOSTNAME_VERIFIER).debug(debugEnabled).connectTimeout(60, TimeUnit.SECONDS)
                 .readTimeout((int) readTimeout, TimeUnit.SECONDS).build();
     }
 }

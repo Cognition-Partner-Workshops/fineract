@@ -166,6 +166,9 @@ public class JMSMultiExternalEventProducer implements ExternalEventProducer {
             for (Future<?> task : tasks) {
                 task.get();
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

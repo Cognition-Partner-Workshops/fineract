@@ -18,6 +18,10 @@
  */
 description = 'Fineract Core'
 
+test {
+    jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+}
+
 apply plugin: 'java'
 apply plugin: 'eclipse'
 

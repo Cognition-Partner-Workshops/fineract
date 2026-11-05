@@ -20,6 +20,7 @@ package org.apache.fineract.infrastructure.event.external.jobs;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -35,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.apache.fineract.avro.MessageV1;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
@@ -179,6 +181,30 @@ class SendAsynchronousEventsTaskletTest {
         // then
         verify(repository, times(0)).markEventsSent(Mockito.any(), Mockito.any());
         assertEquals(RepeatStatus.FINISHED, resultStatus);
+    }
+
+    @Test
+    public void givenInterruptedWhileMarkingEventsAsSentThenInterruptStatusIsRestored() throws Exception {
+        List<ExternalEventView> events = Arrays
+                .asList(createExternalEventView("aType", "aCategory", "aSchema", new byte[0], "aIdempotencyKey", 1L));
+        MessageV1 dummyMessage = new MessageV1(1L, "aSource", "aType", "nocategory", "aCreateDate", "aBusinessDate", "aTenantId",
+                "anidempotencyKey", "aSchema", ByteBuffer.wrap("dummy".getBytes(StandardCharsets.UTF_8)));
+        when(repository.findByStatusOrderByBusinessDateAscIdAsc(Mockito.any(), Mockito.any())).thenReturn(events);
+        when(messageFactory.createMessage(Mockito.any())).thenReturn(dummyMessage);
+        when(byteBufferConverter.convert(Mockito.any(ByteBuffer.class))).thenReturn(new byte[0]);
+        Future<?> future = Mockito.mock(Future.class);
+        when(future.get()).thenThrow(new InterruptedException("interrupted"));
+        ThreadPoolTaskExecutor interruptingExecutor = Mockito.mock(ThreadPoolTaskExecutor.class);
+        Mockito.doReturn(future).when(interruptingExecutor).submit(Mockito.any(Runnable.class));
+        underTest = new SendAsynchronousEventsTasklet(fineractProperties, repository, eventProducer, messageFactory, byteBufferConverter,
+                configurationDomainService, transactionTemplate, interruptingExecutor);
+        try {
+            resultStatus = underTest.execute(stepContribution, chunkContext);
+            assertTrue(Thread.currentThread().isInterrupted());
+            assertEquals(RepeatStatus.FINISHED, resultStatus);
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test

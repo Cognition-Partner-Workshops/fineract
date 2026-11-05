@@ -46,7 +46,8 @@ public final class FineractFeignClientHelper {
             Consumer<FineractFeignClient.Builder> customizer) {
         String url = System.getProperty("fineract.it.url", buildURI());
         FineractFeignClient.Builder builder = FineractFeignClient.builder().baseUrl(url).credentials(username, password)
-                .disableSslVerification(true);
+                .sslContext(InsecureTestTls.SSL_CONTEXT).trustManager(InsecureTestTls.TRUST_MANAGER)
+                .hostnameVerifier(InsecureTestTls.HOSTNAME_VERIFIER);
         customizer.accept(builder);
         return builder.build();
     }

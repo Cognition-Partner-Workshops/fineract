@@ -329,17 +329,7 @@ public class LoanAssemblerImpl implements LoanAssembler {
             }
 
             if (this.fromApiJsonHelper.extractBooleanNamed("isParentAccount", element) != null) {
-                // empty table check
-                // TODO: This count here is weird... and seems parent-empty and parent not empty looks the same
-                if (glimRepository.count() != 0) {
-                    // **************Parent-Not an empty
-                    // table********************
-                    createAndSetGLIMAccount(totalLoan, loan, accountNumberFormat, group, applicationId);
-                } else {
-                    // ************** Parent-empty
-                    // table********************
-                    createAndSetGLIMAccount(totalLoan, loan, accountNumberFormat, group, applicationId);
-                }
+                createAndSetGLIMAccount(totalLoan, loan, accountNumberFormat, group, applicationId);
             } else {
                 // TODO: This count here is weird...
                 if (glimRepository.count() != 0) {

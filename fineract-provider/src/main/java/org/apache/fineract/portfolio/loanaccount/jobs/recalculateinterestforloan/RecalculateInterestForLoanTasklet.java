@@ -150,6 +150,7 @@ public class RecalculateInterestForLoanTasklet implements Tasklet {
                 log.error("All threads could not execute.");
             }
         } catch (InterruptedException e1) {
+            Thread.currentThread().interrupt();
             log.error("Interrupted while posting IR entries", e1);
         } catch (ExecutionException e2) {
             log.error("Execution exception while posting IR entries", e2);
