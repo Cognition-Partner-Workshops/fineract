@@ -42,6 +42,7 @@ import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
 import org.apache.fineract.portfolio.account.data.AccountTransferDTO;
 import org.apache.fineract.portfolio.account.domain.AccountTransferType;
@@ -80,6 +81,7 @@ public class DepositAccountDomainServiceJpa implements DepositAccountDomainServi
     private final AccountNumberFormatRepositoryWrapper accountNumberFormatRepository;
     private final CalendarInstanceRepository calendarInstanceRepository;
     private final ExternalIdFactory externalIdFactory;
+    private final OfficeScopeValidator officeScopeValidator;
 
     @Transactional
     @Override
@@ -213,6 +215,7 @@ public class DepositAccountDomainServiceJpa implements DepositAccountDomainServi
         } else if (onClosureType.isTransferToSavings()) {
             final Long toSavingsId = command.longValueOfParameterNamed(toSavingsAccountIdParamName);
             final String transferDescription = command.stringValueOfParameterNamed(transferDescriptionParamName);
+            this.officeScopeValidator.validateSavingsHasSameOwner(toSavingsId, account.getId());
             final SavingsAccount toSavingsAccount = this.depositAccountAssembler.assembleFrom(toSavingsId,
                     DepositAccountType.SAVINGS_DEPOSIT);
             final boolean isExceptionForBalanceCheck = false;
@@ -289,6 +292,7 @@ public class DepositAccountDomainServiceJpa implements DepositAccountDomainServi
             this.savingsAccountRepository.save(reinvestedDeposit);
 
         } else if (onClosureType.isTransferToSavings()) {
+            this.officeScopeValidator.validateSavingsHasSameOwner(toSavingsId, account.getId());
             final SavingsAccount toSavingsAccount = this.depositAccountAssembler.assembleFrom(toSavingsId,
                     DepositAccountType.SAVINGS_DEPOSIT);
             final boolean isExceptionForBalanceCheck = false;
@@ -373,6 +377,7 @@ public class DepositAccountDomainServiceJpa implements DepositAccountDomainServi
         } else if (onClosureType.isTransferToSavings()) {
             final Long toSavingsId = command.longValueOfParameterNamed(toSavingsAccountIdParamName);
             final String transferDescription = command.stringValueOfParameterNamed(transferDescriptionParamName);
+            this.officeScopeValidator.validateSavingsHasSameOwner(toSavingsId, account.getId());
             final SavingsAccount toSavingsAccount = this.depositAccountAssembler.assembleFrom(toSavingsId,
                     DepositAccountType.SAVINGS_DEPOSIT);
             final boolean isExceptionForBalanceCheck = false;
@@ -462,6 +467,7 @@ public class DepositAccountDomainServiceJpa implements DepositAccountDomainServi
             final boolean isExceptionForBalanceCheck = false;
             final Long toSavingsId = command.longValueOfParameterNamed(toSavingsAccountIdParamName);
             final String transferDescription = command.stringValueOfParameterNamed(transferDescriptionParamName);
+            this.officeScopeValidator.validateSavingsHasSameOwner(toSavingsId, account.getId());
             final SavingsAccount toSavingsAccount = this.depositAccountAssembler.assembleFrom(toSavingsId,
                     DepositAccountType.SAVINGS_DEPOSIT);
             final AccountTransferDTO accountTransferDTO = new AccountTransferDTO(closedDate, account.getAccountBalance(),
@@ -518,6 +524,7 @@ public class DepositAccountDomainServiceJpa implements DepositAccountDomainServi
             final boolean isExceptionForBalanceCheck = false;
             final Long toSavingsId = command.longValueOfParameterNamed(toSavingsAccountIdParamName);
             final String transferDescription = command.stringValueOfParameterNamed(transferDescriptionParamName);
+            this.officeScopeValidator.validateSavingsHasSameOwner(toSavingsId, account.getId());
             final SavingsAccount toSavingsAccount = this.depositAccountAssembler.assembleFrom(toSavingsId,
                     DepositAccountType.SAVINGS_DEPOSIT);
             final AccountTransferDTO accountTransferDTO = new AccountTransferDTO(closedDate, account.getAccountBalance(),

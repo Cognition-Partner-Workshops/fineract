@@ -22,6 +22,7 @@ import static org.apache.fineract.portfolio.savings.DepositsApiConstants.isCalen
 import static org.apache.fineract.portfolio.savings.DepositsApiConstants.recurringFrequencyParamName;
 import static org.apache.fineract.portfolio.savings.DepositsApiConstants.recurringFrequencyTypeParamName;
 import static org.apache.fineract.portfolio.savings.DepositsApiConstants.transferInterestToSavingsParamName;
+import static org.apache.fineract.portfolio.savings.DepositsApiConstants.transferToSavingsIdParamName;
 
 import jakarta.persistence.PersistenceException;
 import java.math.MathContext;
@@ -52,6 +53,7 @@ import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.event.business.domain.deposit.FixedDepositAccountCreateBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.domain.deposit.RecurringDepositAccountCreateBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.staff.domain.Staff;
 import org.apache.fineract.organisation.staff.domain.StaffRepositoryWrapper;
@@ -121,6 +123,7 @@ public class DepositApplicationProcessWritePlatformServiceJpaRepositoryImpl impl
     private final ConfigurationDomainService configurationDomainService;
     private final AccountNumberFormatRepositoryWrapper accountNumberFormatRepository;
     private final BusinessEventNotifierService businessEventNotifierService;
+    private final OfficeScopeValidator officeScopeValidator;
 
     /*
      * Guaranteed to throw an exception no matter what the data integrity issue is.
@@ -345,6 +348,10 @@ public class DepositApplicationProcessWritePlatformServiceJpaRepositoryImpl impl
             final FixedDepositAccount account = (FixedDepositAccount) this.depositAccountAssembler.assembleFrom(accountId,
                     DepositAccountType.FIXED_DEPOSIT);
             checkClientOrGroupActive(account);
+            if (command.parameterExists(transferToSavingsIdParamName)) {
+                this.officeScopeValidator.validateSavingsHasSameOwner(command.longValueOfParameterNamed(transferToSavingsIdParamName),
+                        account.getId());
+            }
             account.modifyApplication(command, changes);
             account.validateNewApplicationState(DepositAccountType.FIXED_DEPOSIT.resourceName());
 
@@ -435,6 +442,10 @@ public class DepositApplicationProcessWritePlatformServiceJpaRepositoryImpl impl
             final RecurringDepositAccount account = (RecurringDepositAccount) this.depositAccountAssembler.assembleFrom(accountId,
                     DepositAccountType.RECURRING_DEPOSIT);
             checkClientOrGroupActive(account);
+            if (command.parameterExists(transferToSavingsIdParamName)) {
+                this.officeScopeValidator.validateSavingsHasSameOwner(command.longValueOfParameterNamed(transferToSavingsIdParamName),
+                        account.getId());
+            }
             account.modifyApplication(command, changes);
             account.validateNewApplicationState(DepositAccountType.RECURRING_DEPOSIT.resourceName());
 
