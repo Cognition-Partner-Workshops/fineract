@@ -30,7 +30,7 @@ import org.apache.fineract.infrastructure.core.jersey.converter.LocalDateJsonCon
 import org.apache.fineract.infrastructure.core.jersey.serializer.legacy.JacksonLocalDateArraySerializer;
 import org.apache.fineract.infrastructure.core.jersey.serializer.legacy.JsonLocalDateArrayFormat;
 
-@SuppressFBWarnings({ "SE_BAD_FIELD", "SE_BAD_FIELD_STORE" })
+@SuppressFBWarnings("SE_BAD_FIELD")
 public class JacksonLocalDateBeanSerializerModifier extends BeanSerializerModifier {
 
     private final JsonSerializer<?> localDateSerializer = new JacksonSerializerAdapter<>(new LocalDateJsonConverter());

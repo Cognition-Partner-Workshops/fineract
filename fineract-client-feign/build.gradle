@@ -166,10 +166,6 @@ spotbugsTest {
     enabled = false
 }
 
-jacoco {
-    toolVersion = "0.8.11"
-}
-
 jacocoTestReport {
     dependsOn test
     reports {

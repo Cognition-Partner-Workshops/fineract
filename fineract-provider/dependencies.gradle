@@ -17,7 +17,23 @@
  * under the License.
  */
 
+configurations {
+    spotbugsAux {
+        canBeConsumed = false
+    }
+}
+
+tasks.matching {
+    it.name in [
+        'spotbugsMain',
+        'spotbugsTest'
+    ]
+}.configureEach {
+    auxClassPaths.from(configurations.spotbugsAux)
+}
+
 dependencies {
+    spotbugsAux 'org.osgi:org.osgi.core:6.0.0'
     modules {
         module("io.swagger.core.v3:swagger-annotations") {
             replacedBy("io.swagger.core.v3:swagger-annotations-jakarta")

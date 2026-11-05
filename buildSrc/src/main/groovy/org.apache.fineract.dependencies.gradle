@@ -32,7 +32,7 @@ dependencyManagement {
         mavenBom 'org.junit:junit-bom:5.11.3'
         mavenBom 'com.fasterxml.jackson:jackson-bom:2.19.2'
         mavenBom 'io.cucumber:cucumber-bom:7.20.1'
-        mavenBom 'org.mockito:mockito-bom:5.14.2'
+        mavenBom 'org.mockito:mockito-bom:5.20.0'
         mavenBom 'software.amazon.awssdk:bom:2.29.9'
         mavenBom 'io.github.resilience4j:resilience4j-bom:2.2.0'
         mavenBom 'org.testcontainers:testcontainers-bom:1.20.4'
@@ -50,7 +50,9 @@ dependencyManagement {
         dependency 'ch.qos.logback.contrib:logback-jackson:0.1.5'
         dependency 'org.codehaus.janino:janino:3.1.12'
 
-        dependency 'org.eclipse.persistence:org.eclipse.persistence.jpa:4.0.2'
+        dependency 'org.eclipse.persistence:org.eclipse.persistence.jpa:4.0.9'
+        dependency 'net.bytebuddy:byte-buddy:1.17.8'
+        dependency 'net.bytebuddy:byte-buddy-agent:1.17.8'
         dependency 'com.google.guava:guava:33.1.0-jre'
         dependency 'com.google.code.gson:gson:2.11.0'
         dependency 'com.google.googlejavaformat:google-java-format:1.24.0'
@@ -125,7 +127,7 @@ dependencyManagement {
 
         dependency 'io.github.classgraph:classgraph:4.8.179'
         dependency 'org.awaitility:awaitility:4.2.2'
-        dependency 'com.github.spotbugs:spotbugs-annotations:4.8.6'
+        dependency 'com.github.spotbugs:spotbugs-annotations:4.9.8'
         dependency 'javax.cache:cache-api:1.1.1'
         dependency 'org.mock-server:mockserver-junit-jupiter:5.15.0'
         dependency 'org.webjars:webjars-locator-core:0.59'
@@ -150,7 +152,7 @@ dependencyManagement {
         dependency "io.gsonfire:gson-fire:1.9.0"
         dependency "com.google.code.findbugs:jsr305:3.0.2"
         dependency "commons-codec:commons-codec:1.17.1"
-        dependency "org.projectlombok:lombok:1.18.36"
+        dependency "org.projectlombok:lombok:1.18.42"
 
         dependency 'org.bouncycastle:bcpkix-jdk18on:1.81'
         dependency 'org.bouncycastle:bcprov-jdk18on:1.81'

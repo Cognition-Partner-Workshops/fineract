@@ -40,16 +40,16 @@ Incorrect default Java-related executables may cause test failures.
 To fix this on Debian and Ubuntu systems, run the following:
 
 ```bash
-export JAVA_HOME=/usr/lib/jvm/zulu21
+export JAVA_HOME=/usr/lib/jvm/zulu25
 sudo update-alternatives --set java $JAVA_HOME/bin/java
 sudo update-alternatives --set javac $JAVA_HOME/bin/javac
 sudo update-alternatives --set javadoc $JAVA_HOME/bin/javadoc
 ```
 
 This would correct, for example, a [class file version error](https://en.wikipedia.org/wiki/Java_class_file#General_layout).
-You might see something like this if a Java 11 executable (class file format version 56) was the system default, but the integration tests were using Java 21 (class file format version 65):
+You might see something like this if a Java 11 executable (class file format version 55) was the system default, but the integration tests were using Java 25 (class file format version 69):
 
-> UnsupportedClassVersionError: com.example.package/ClassName has been compiled by a more recent version of the Java Runtime (class file version 65.0), this version of the Java Runtime only recognizes class file versions up to 55.0
+> UnsupportedClassVersionError: com.example.package/ClassName has been compiled by a more recent version of the Java Runtime (class file version 69.0), this version of the Java Runtime only recognizes class file versions up to 55.0
 
 The GitHub builds are run in [short-lived virtual machines](https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners), so locally reproducing the same may require additional effort, such as these extra clean-up procedures:
 
@@ -126,7 +126,7 @@ IntelliJ IDEA provides strong Gradle integration and is recommended for most new
 
 ### Prerequisites
 - IntelliJ IDEA (Community Edition is sufficient)
-- Java 21 (as required by Fineract)
+- Java 25 (as required by Fineract)
 - Gradle (wrapper included in the repository)
 
 ### Steps
@@ -135,7 +135,7 @@ IntelliJ IDEA provides strong Gradle integration and is recommended for most new
 2. Choose the root `fineract` directory
 3. When prompted, import the project as a **Gradle project**
 4. Use the Gradle wrapper (`gradlew`) when asked
-5. Ensure the correct JDK is selected (**Java 21**)
+5. Ensure the correct JDK is selected (**Java 25**)
 6. After import completes, run:
    - `org.apache.fineract.ServerApplication` as a **Java Application**
 

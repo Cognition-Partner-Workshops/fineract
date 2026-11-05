@@ -26,7 +26,6 @@ apply plugin: 'com.gorylenko.gradle-git-properties'
 apply plugin: 'io.swagger.core.v3.swagger-gradle-plugin'
 apply plugin: 'com.google.cloud.tools.jib'
 apply plugin: 'org.springframework.boot'
-apply plugin: 'se.thinkcode.cucumber-runner'
 
 check.dependsOn('cucumber')
 
@@ -243,7 +242,7 @@ bootJar {
 
 jib {
     from {
-        image = 'azul/zulu-openjdk-alpine:21'
+        image = 'azul/zulu-openjdk-alpine:25'
         platforms {
             platform {
                 architecture = System.getProperty("os.arch").equals("aarch64")?"arm64":"amd64"
@@ -303,16 +302,22 @@ tasks.register('migrateDatabase') {
     }
 }
 
-cucumber {
-    tags = 'not @ignore'
-    main = 'io.cucumber.core.cli.Main'
-    shorten = 'argfile'
-    plugin = [
-        'pretty',
-        'html:build/reports/cucumber/report.html',
-        'json:build/reports/cucumber/report.json',
-        'junit:build/reports/cucumber/report.xml'
-    ]
+tasks.register('cucumber', JavaExec) {
+    group = 'verification'
+    description = 'Runs the provider Cucumber scenarios'
+    dependsOn tasks.named('testClasses'), tasks.named('resolve')
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'io.cucumber.core.cli.Main'
+    systemProperties gradle.startParameter.systemPropertiesArgs.findAll { key, value ->
+        !key.startsWith('java.') && !key.startsWith('org.gradle.')
+    }
+    args '--tags', 'not @ignore',
+        '--plugin', 'pretty',
+        '--plugin', 'html:build/reports/cucumber/report.html',
+        '--plugin', 'json:build/reports/cucumber/report.json',
+        '--plugin', 'junit:build/reports/cucumber/report.xml',
+        'src/test/resources'
 }
 
 tasks.jib.dependsOn(bootJar, resolve)
