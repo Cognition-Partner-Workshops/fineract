@@ -108,7 +108,7 @@ class SelfAccountTransferApiResourceSecurityTest {
 
     @Test
     void backdatedTransferIsRejectedWithBusinessDateErrorBeforeLimitCheck() {
-        when(accountTransfersReadPlatformService.getTotalTransactionAmount(101L, 2, BACKDATED_DATE)).thenReturn(new BigDecimal("90"));
+        when(accountTransfersReadPlatformService.getTotalTransactionAmount(101L, 2, BACKDATED_DATE)).thenReturn(BigDecimal.ZERO);
         when(accountTransfersReadPlatformService.getTotalTransactionAmount(101L, 2, BUSINESS_DATE)).thenReturn(new BigDecimal("90"));
         AccountTransferRequest request = mock(AccountTransferRequest.class);
         when(serializer.serialize(request)).thenReturn("synthetic-request");
