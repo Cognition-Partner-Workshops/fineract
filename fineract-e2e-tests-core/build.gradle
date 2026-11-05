@@ -37,6 +37,10 @@ repositories {
     mavenCentral()
 }
 
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
+}
+
 // Configure test compilation
 tasks.named('compileTestJava') {
     description = 'Compiles test Java source files'
@@ -52,8 +56,8 @@ tasks.named('compileTestJava') {
         .withPropertyName("testClassesDir")
 
     // Track annotation processor outputs
-    options.annotationProcessorGeneratedSourcesDirectory = 
-        layout.buildDirectory.dir('generated/sources/annotationProcessor/java/test').get().asFile
+    options.generatedSourceOutputDirectory =
+        layout.buildDirectory.dir('generated/sources/annotationProcessor/java/test')
 }
 
 dependencies {

@@ -321,7 +321,6 @@ tasks.jibDockerBuild.dependsOn(bootJar, resolve)
 // Configuration for git properties gradle plugin
 // https://github.com/n0mer/gradle-git-properties
 gitProperties {
-    gitPropertiesResourceDir = file("$buildDir/classes/java/main")
     dateFormat = "yyyy-MM-dd'T'HH:mmZ"
     dateFormatTimeZone = "GMT"
     failOnNoGitDirectory = false
@@ -329,6 +328,14 @@ gitProperties {
 
 // make sure the generateGitProperties task always executes (even when git.properties is not changed)
 generateGitProperties.outputs.upToDateWhen { false }
+
+tasks.named('sourcesJar') {
+    dependsOn tasks.named('generateGitProperties')
+}
+
+tasks.named('licenseMain') {
+    dependsOn tasks.named('generateGitProperties')
+}
 
 // NOTE: Gradle suggested these dependencies
 jar.dependsOn resolve

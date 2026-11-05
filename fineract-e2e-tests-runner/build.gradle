@@ -18,8 +18,8 @@
  */
 
 plugins {
-    id 'se.thinkcode.cucumber-runner' version '0.0.11'
-    id 'io.qameta.allure' version '2.12.0'
+    id 'se.thinkcode.cucumber-runner' version '0.0.14'
+    id 'io.qameta.allure' version '4.3.0'
 }
 
 apply plugin: 'java'
@@ -33,7 +33,7 @@ dependencies {
     testImplementation(project(':fineract-avro-schemas'))
     testImplementation(project(':fineract-client'))
     testImplementation(project(':fineract-client-feign'))
-    testImplementation(project(':fineract-e2e-tests-core').sourceSets.test.output)
+    testImplementation(rootProject.project(':fineract-e2e-tests-core').sourceSets.test.output)
 
     testImplementation 'org.springframework:spring-context'
     implementation 'org.springframework:spring-test'

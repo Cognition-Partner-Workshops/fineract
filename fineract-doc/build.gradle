@@ -106,7 +106,7 @@ asciidoctor {
 
     dependsOn copyImages, copyDiagrams
 
-    dependsOn(':fineract-client:clean', ':fineract-client:buildAsciidoc')
+    dependsOn(':fineract-client:buildAsciidoc')
 }
 
 asciidoctorPdf {
@@ -131,7 +131,7 @@ asciidoctorPdf {
     //     }
     // }
     // fontsDir "$projectDir/src/resources/fonts"
-    dependsOn(':fineract-client:clean', ':fineract-client:buildAsciidoc')
+    dependsOn(':fineract-client:buildAsciidoc')
 }
 
 task doc(type: Zip) {
