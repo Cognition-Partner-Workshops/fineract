@@ -57,7 +57,7 @@ java {
 }
 
 dependencies {
-    implementation 'com.sun.activation:jakarta.activation'
+    implementation 'org.eclipse.angus:angus-activation'
     implementation 'com.sun.mail:jakarta.mail'
     implementation 'org.freemarker:freemarker'
     implementation ('com.tmatesoft.svnkit:svnkit') {
