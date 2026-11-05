@@ -19,6 +19,7 @@
 package org.apache.fineract.infrastructure.core.service.migration;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Map;
@@ -50,7 +51,9 @@ public class TenantPasswordEncryptionTask implements CustomTaskChange, Applicati
     @Override
     public void execute(Database database) throws CustomChangeException {
         JdbcConnection dbConn = (JdbcConnection) database.getConnection(); // autocommit is false
-        try (Statement selectStatement = dbConn.createStatement(); Statement updateStatement = dbConn.createStatement()) {
+        try (Statement selectStatement = dbConn.createStatement();
+                PreparedStatement updateStatement = dbConn.prepareStatement(
+                        "update tenant_server_connections set schema_password = ?, master_password_hash = ? where id = ?")) {
 
             try (ResultSet rs = selectStatement.executeQuery("SELECT id, schema_password FROM tenant_server_connections")) {
                 while (rs.next()) {
@@ -58,11 +61,10 @@ public class TenantPasswordEncryptionTask implements CustomTaskChange, Applicati
                     if (!Boolean.TRUE.equals(done.get(id))) {
                         String schemaPassword = rs.getString("schema_password");
                         String encryptedPassword = TenantPasswordEncryptionTask.databasePasswordEncryptor.encrypt(schemaPassword);
-
-                        String updateSql = String.format(
-                                "update tenant_server_connections set schema_password = '%s', master_password_hash = '%s' where id = %s",
-                                encryptedPassword, TenantPasswordEncryptionTask.databasePasswordEncryptor.getMasterPasswordHash(), id);
-                        updateStatement.execute(updateSql);
+                        updateStatement.setString(1, encryptedPassword);
+                        updateStatement.setString(2, TenantPasswordEncryptionTask.databasePasswordEncryptor.getMasterPasswordHash());
+                        updateStatement.setLong(3, rs.getLong("id"));
+                        updateStatement.executeUpdate();
                         done.put(id, true);
                     }
                 }
