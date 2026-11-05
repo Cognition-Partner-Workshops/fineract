@@ -194,7 +194,7 @@ class TellerWritePlatformServiceJpaImplOfficeScopeTest {
 
     @Test
     void tellerCannotBeCreatedInSiblingBranch() {
-        final JsonCommand command = command("{\"officeId\": " + SIBLING_OFFICE_ID + ", \"name\": \"t\", \"status\": 300}", null, null);
+        final JsonCommand command = command("{\"officeId\": " + SIBLING_OFFICE_ID + ", \"name\": \"t\", \"status\": 300, \"locale\": \"en\"}", null, null);
 
         assertThrows(NoAuthorizationException.class, () -> underTest.createTeller(command));
         verify(tellerRepositoryWrapper, never()).saveAndFlush(any());
