@@ -93,7 +93,7 @@ tasks.register('cucumber', JavaExec) {
     if (providers.gradleProperty('cucumber.name').isPresent()) {
         args '--name', providers.gradleProperty('cucumber.name').get()
     }
-    args providers.gradleProperty('cucumber.features').getOrElse('src/test/resources/features')
+    args providers.gradleProperty('cucumber.features').getOrElse('src/test/resources/features').split(':(?!\\d+(?::|$))')
 }
 
 allure {
