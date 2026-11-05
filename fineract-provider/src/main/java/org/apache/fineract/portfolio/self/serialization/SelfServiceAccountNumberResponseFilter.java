@@ -32,9 +32,11 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.ext.Provider;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,13 +84,14 @@ public class SelfServiceAccountNumberResponseFilter implements ContainerResponse
             response.getHeaders().remove(HttpHeaders.CONTENT_LENGTH);
             return;
         }
-        response.setEntity(mask(json, response.getStatus() >= 400, false).toString());
+        response.setEntity(mask(json, response.getStatus() >= 400, false, Set.of()).toString());
         response.getHeaders().remove(HttpHeaders.CONTENT_LENGTH);
     }
 
-    private JsonNode mask(JsonNode node, boolean error, boolean redactErrorValue) {
+    private JsonNode mask(JsonNode node, boolean error, boolean redactErrorValue, Set<String> numericArguments) {
         if (node.isObject()) {
             ObjectNode object = (ObjectNode) node;
+            Set<String> disclosed = error && !redactErrorValue ? disclosedNumbers(object) : numericArguments;
             Iterator<Map.Entry<String, JsonNode>> fields = object.fields();
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> field = fields.next();
@@ -97,15 +100,17 @@ public class SelfServiceAccountNumberResponseFilter implements ContainerResponse
                     object.put(field.getKey(), SelfServiceAccountNumbers.mask(value.asText()));
                 } else {
                     String key = field.getKey().toLowerCase(Locale.ROOT);
-                    boolean errorField = key.endsWith("message") || key.equals("args") || key.equals("arguments");
-                    object.set(field.getKey(), mask(value, error, redactErrorValue || (error && errorField)));
+                    object.set(field.getKey(), mask(value, error, redactErrorValue || (error && isErrorField(key)),
+                            error && isArguments(key) ? disclosed : numericArguments));
                 }
             }
         } else if (node.isArray()) {
             ArrayNode array = (ArrayNode) node;
             for (int index = 0; index < array.size(); index++) {
-                array.set(index, mask(array.get(index), error, redactErrorValue));
+                array.set(index, mask(array.get(index), error, redactErrorValue, numericArguments));
             }
+        } else if (node.isNumber() && numericArguments.contains(node.asText())) {
+            return TextNode.valueOf(SelfServiceAccountNumbers.mask(node.asText()));
         } else if (node.isTextual()) {
             String value = node.asText();
             String masked = SelfServiceAccountNumbers.maskErrorCode(value);
@@ -117,5 +122,31 @@ public class SelfServiceAccountNumberResponseFilter implements ContainerResponse
             }
         }
         return node;
+    }
+
+    private Set<String> disclosedNumbers(ObjectNode object) {
+        Set<String> numbers = new HashSet<>();
+        object.fields().forEachRemaining(field -> {
+            if (isErrorField(field.getKey().toLowerCase(Locale.ROOT))) {
+                collectDisclosedNumbers(field.getValue(), numbers);
+            }
+        });
+        return numbers;
+    }
+
+    private void collectDisclosedNumbers(JsonNode node, Set<String> numbers) {
+        if (node.isTextual()) {
+            ERROR_DIGITS.matcher(node.asText()).results().forEach(match -> numbers.add(match.group()));
+        } else if (node.isContainerNode()) {
+            node.forEach(value -> collectDisclosedNumbers(value, numbers));
+        }
+    }
+
+    private static boolean isArguments(String key) {
+        return key.equals("args") || key.equals("arguments");
+    }
+
+    private static boolean isErrorField(String key) {
+        return key.endsWith("message") || isArguments(key);
     }
 }

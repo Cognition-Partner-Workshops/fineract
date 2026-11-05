@@ -198,6 +198,51 @@ class SelfServiceAccountDisclosureTest {
     }
 
     @Test
+    void numericArgumentsMatchingWholeMessageDigitRunsAreMasked() throws Exception {
+        JsonNode output = new ObjectMapper().readTree(response("v1/self/loans",
+                "{\"message\":\"Duplicate account 12345678\",\"args\":[12345678,12345,5678],\"count\":12345678}", 400, 400));
+        assertEquals("Duplicate account ****5678", output.get("message").asText());
+        assertEquals("****5678", output.at("/args/0").asText());
+        assertTrue(output.at("/args/0").isTextual());
+        assertEquals(12345, output.at("/args/1").asInt());
+        assertTrue(output.at("/args/1").isIntegralNumber());
+        assertEquals(5678, output.at("/args/2").asInt());
+        assertTrue(output.get("count").isIntegralNumber());
+        assertEquals(12345678, output.get("count").asInt());
+    }
+
+    @Test
+    void numericArgumentsMatchStringArgumentsBeforeRedactionRegardlessOfOrder() throws Exception {
+        for (String arguments : new String[] { "12345678,{\"value\":\"account 12345678\"}", "{\"value\":\"account 12345678\"},12345678" }) {
+            JsonNode output = new ObjectMapper().readTree(
+                    response("v1/self/savingsaccounts", "{\"message\":\"Duplicate account\",\"arguments\":[" + arguments + "]}", 400, 400));
+            for (JsonNode argument : output.get("arguments")) {
+                if (argument.isObject()) {
+                    assertEquals("account ****5678", argument.get("value").asText());
+                } else {
+                    assertTrue(argument.isTextual());
+                    assertEquals("****5678", argument.asText());
+                }
+            }
+        }
+    }
+
+    @Test
+    void numericArgumentMatchingDoesNotCrossErrorObjectsOrMatchSubstrings() throws Exception {
+        JsonNode output = new ObjectMapper().readTree(response("v1/self/loans",
+                "{\"developerMessage\":\"Account 55555\",\"errors\":[" + "{\"message\":\"Account 12345678\",\"args\":[12345678]},"
+                        + "{\"message\":\"Another error 9123456789\",\"args\":[12345678,55555,1234]}]}",
+                400, 400));
+        assertEquals("****5678", output.at("/errors/0/args/0").asText());
+        for (JsonNode argument : output.at("/errors/1/args")) {
+            assertTrue(argument.isIntegralNumber());
+        }
+        assertEquals(12345678, output.at("/errors/1/args/0").asInt());
+        assertEquals(55555, output.at("/errors/1/args/1").asInt());
+        assertEquals(1234, output.at("/errors/1/args/2").asInt());
+    }
+
+    @Test
     void nonJsonBodiesPassThroughIncludingWildcardMediaTypes() throws Exception {
         for (MediaType media : new MediaType[] { MediaType.TEXT_PLAIN_TYPE, MediaType.TEXT_HTML_TYPE,
                 MediaType.APPLICATION_OCTET_STREAM_TYPE, MediaType.WILDCARD_TYPE, new MediaType("application", "*") }) {
