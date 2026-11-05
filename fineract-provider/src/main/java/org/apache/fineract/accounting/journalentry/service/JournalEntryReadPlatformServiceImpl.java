@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.accounting.common.AccountingEnumerations;
@@ -43,6 +44,7 @@ import org.apache.fineract.accounting.journalentry.data.TransactionDetailData;
 import org.apache.fineract.accounting.journalentry.data.TransactionTypeEnumData;
 import org.apache.fineract.accounting.journalentry.exception.JournalEntriesNotFoundException;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
+import org.apache.fineract.infrastructure.core.data.PaginationParametersDataValidator;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
@@ -78,6 +80,9 @@ public class JournalEntryReadPlatformServiceImpl implements JournalEntryReadPlat
 
     private final PaginationHelper paginationHelper;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
+
+    private static final Set<String> SUPPORTED_ORDER_BY_VALUES = Set.of("id", "transactionid", "transactiondate", "journalentry.id",
+            "journalentry.entry_date", "journalentry.transaction_id");
 
     protected static class GLJournalEntryMapper implements RowMapper<JournalEntryData> {
 
@@ -240,6 +245,7 @@ public class JournalEntryReadPlatformServiceImpl implements JournalEntryReadPlat
             final Boolean onlyManualEntries, final LocalDate fromDate, final LocalDate toDate, final LocalDate submittedOnDateFrom,
             final LocalDate submittedOnDateTo, final String transactionId, final Integer entityType,
             final JournalEntryAssociationParametersData associationParametersData) {
+        PaginationParametersDataValidator.validateSearchParameters(searchParameters, SUPPORTED_ORDER_BY_VALUES, "journalEntry");
         GLJournalEntryMapper rm = getGlJournalEntryMapper(associationParametersData);
         final StringBuilder sqlBuilder = new StringBuilder(200);
         sqlBuilder.append("select ").append(sqlGenerator.calcFoundRows()).append(" ");
@@ -363,7 +369,7 @@ public class JournalEntryReadPlatformServiceImpl implements JournalEntryReadPlat
 
             if (searchParameters.hasSortOrder()) {
                 sqlBuilder.append(' ').append(searchParameters.getSortOrder());
-                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getOrderBy());
+                this.columnValidator.validateSqlInjection(sqlBuilder.toString(), searchParameters.getSortOrder());
             }
         } else {
             sqlBuilder.append(" order by journalEntry.entry_date, journalEntry.id");

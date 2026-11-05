@@ -24,9 +24,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
+import org.apache.fineract.infrastructure.core.data.PaginationParametersDataValidator;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
 import org.apache.fineract.infrastructure.core.service.PaginationHelper;
@@ -64,6 +66,8 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
     // pagination
     private final PaginationHelper paginationHelper;
     private final SqlValidator sqlValidator;
+
+    private static final Set<String> SUPPORTED_ORDER_BY_VALUES = Set.of("id", "transferdate", "atd.id", "atd.transfer_date");
 
     @Override
     public AccountTransferData retrieveTemplate(final Long fromOfficeId, final Long fromClientId, final Long fromAccountId,
@@ -196,6 +200,7 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
 
     @Override
     public Page<AccountTransferData> retrieveAll(final SearchParameters searchParameters, final Long accountDetailId) {
+        PaginationParametersDataValidator.validateSearchParameters(searchParameters, SUPPORTED_ORDER_BY_VALUES, "accountTransfer");
         Stream.of(searchParameters.getOrderBy(), searchParameters.getSortOrder(), searchParameters.getExternalId())
                 .forEach(sqlValidator::validate);
         final StringBuilder sqlBuilder = new StringBuilder(200);
@@ -269,6 +274,9 @@ public class AccountTransfersReadPlatformServiceImpl implements AccountTransfers
     @Override
     public Page<AccountTransferData> retrieveByStandingInstruction(final Long id, final SearchParameters searchParameters) {
 
+        if (searchParameters != null) {
+            PaginationParametersDataValidator.validateSearchParameters(searchParameters, SUPPORTED_ORDER_BY_VALUES, "accountTransfer");
+        }
         final StringBuilder sqlBuilder = new StringBuilder(200);
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
         sqlBuilder.append(this.accountTransfersMapper.schema()).append(
