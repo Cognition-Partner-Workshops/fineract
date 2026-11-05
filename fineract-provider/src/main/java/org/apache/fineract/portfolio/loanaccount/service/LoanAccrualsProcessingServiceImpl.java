@@ -188,6 +188,9 @@ public class LoanAccrualsProcessingServiceImpl implements LoanAccrualsProcessing
         for (Future<?> task : loanTasks) {
             try {
                 task.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                errors.add(e);
             } catch (Exception e) {
                 errors.add(e);
             }
