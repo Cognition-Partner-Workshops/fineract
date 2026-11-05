@@ -28,9 +28,9 @@ import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
 import org.apache.fineract.portfolio.loanaccount.exception.LoanNotFoundException;
 import org.springframework.batch.core.ExitStatus;
-import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.annotation.AfterStep;
-import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.core.step.StepExecution;
+import org.springframework.batch.infrastructure.item.ItemReader;
 import org.springframework.lang.NonNull;
 
 @Slf4j

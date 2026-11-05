@@ -33,12 +33,12 @@ import org.apache.fineract.cob.data.COBPartition;
 import org.apache.fineract.cob.resolver.BusinessDateResolver;
 import org.apache.fineract.cob.resolver.CatchUpFlagResolver;
 import org.apache.fineract.infrastructure.springbatch.PropertyService;
-import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.launch.JobExecutionNotRunningException;
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.batch.core.launch.NoSuchJobExecutionException;
-import org.springframework.batch.core.partition.support.Partitioner;
-import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.core.partition.Partitioner;
+import org.springframework.batch.core.step.StepExecution;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.lang.NonNull;
 import org.springframework.util.StopWatch;
 

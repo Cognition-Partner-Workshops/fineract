@@ -33,10 +33,10 @@ import org.apache.fineract.cob.COBBusinessStepService;
 import org.apache.fineract.cob.data.BusinessStepNameAndOrder;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.springframework.batch.core.ExitStatus;
-import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.annotation.AfterStep;
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.core.step.StepExecution;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
+import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.lang.NonNull;
 
 @RequiredArgsConstructor

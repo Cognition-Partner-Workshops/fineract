@@ -33,10 +33,10 @@ import org.apache.fineract.infrastructure.jobs.data.JobParameterDTO;
 import org.apache.fineract.infrastructure.jobs.domain.CustomJobParameter;
 import org.apache.fineract.infrastructure.jobs.domain.CustomJobParameterRepository;
 import org.apache.fineract.infrastructure.springbatch.SpringBatchJobConstants;
-import org.springframework.batch.core.JobParameter;
-import org.springframework.batch.core.StepContribution;
-import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.job.parameters.JobParameter;
 import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.core.step.StepContribution;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.stereotype.Component;
 
 @RequiredArgsConstructor
@@ -86,8 +86,8 @@ public class CustomJobParameterResolver {
      */
     private Map<String, Object> getJobParameters(StepExecution stepExecution) {
         Map<String, Object> result = new HashMap<>();
-        for (Map.Entry<String, JobParameter<?>> entry : stepExecution.getJobParameters().getParameters().entrySet()) {
-            result.put(entry.getKey(), entry.getValue().getValue());
+        for (JobParameter<?> parameter : stepExecution.getJobParameters()) {
+            result.put(parameter.name(), parameter.value());
         }
         return Collections.unmodifiableMap(result);
     }

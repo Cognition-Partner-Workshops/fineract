@@ -36,7 +36,7 @@ import org.springframework.batch.core.annotation.OnSkipInProcess;
 import org.springframework.batch.core.annotation.OnSkipInRead;
 import org.springframework.batch.core.annotation.OnSkipInWrite;
 import org.springframework.batch.core.annotation.OnWriteError;
-import org.springframework.batch.item.Chunk;
+import org.springframework.batch.infrastructure.item.Chunk;
 import org.springframework.lang.NonNull;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallbackWithoutResult;

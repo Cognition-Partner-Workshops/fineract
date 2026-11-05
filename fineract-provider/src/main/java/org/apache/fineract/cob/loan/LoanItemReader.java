@@ -30,9 +30,9 @@ import org.apache.fineract.cob.domain.LoanAccountLock;
 import org.apache.fineract.cob.domain.LockOwner;
 import org.apache.fineract.cob.resolver.CatchUpFlagResolver;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
-import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.annotation.BeforeStep;
-import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.core.step.StepExecution;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.lang.NonNull;
 
 @Slf4j

@@ -23,16 +23,18 @@ import org.apache.fineract.infrastructure.core.persistence.ExtendedJpaTransactio
 import org.apache.fineract.infrastructure.core.persistence.TransactionLifecycleCallback;
 import org.apache.fineract.infrastructure.core.service.database.RoutingDataSource;
 import org.apache.fineract.infrastructure.jobs.config.FineractDataFieldMaxValueIncrementerFactory;
+import org.springframework.batch.core.configuration.JobRegistry;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
-import org.springframework.batch.core.explore.JobExplorer;
-import org.springframework.batch.core.explore.support.JobExplorerFactoryBean;
-import org.springframework.batch.core.launch.support.TaskExecutorJobLauncher;
+import org.springframework.batch.core.configuration.support.JobRegistrySmartInitializingSingleton;
+import org.springframework.batch.core.configuration.support.MapJobRegistry;
+import org.springframework.batch.core.launch.support.TaskExecutorJobOperator;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.dao.Jackson2ExecutionContextStringSerializer;
-import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
-import org.springframework.batch.item.database.support.DataFieldMaxValueIncrementerFactory;
+import org.springframework.batch.core.repository.support.JdbcJobRepositoryFactoryBean;
+import org.springframework.batch.infrastructure.item.database.support.DataFieldMaxValueIncrementerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizers;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.transaction.autoconfigure.TransactionManagerCustomizers;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -65,34 +67,36 @@ public class ScheduledJobRunnerConfig {
 
     @Bean
     public JobRepository jobRepository(RoutingDataSource routingDataSource, PlatformTransactionManager transactionManager,
-            Jackson2ExecutionContextStringSerializer executionContextSerializer, DataFieldMaxValueIncrementerFactory incrementerFactory)
-            throws Exception {
-        JobRepositoryFactoryBean factory = new JobRepositoryFactoryBean();
+            Jackson2ExecutionContextStringSerializer executionContextSerializer, DataFieldMaxValueIncrementerFactory incrementerFactory,
+            @Value("${spring.batch.jdbc.table-prefix:BATCH_}") String tablePrefix) throws Exception {
+        JdbcJobRepositoryFactoryBean factory = new JdbcJobRepositoryFactoryBean();
         factory.setDataSource(routingDataSource);
         factory.setTransactionManager(transactionManager);
         factory.setIsolationLevelForCreate("ISOLATION_READ_COMMITTED");
         factory.setSerializer(executionContextSerializer);
         factory.setIncrementerFactory(incrementerFactory);
+        factory.setTablePrefix(tablePrefix);
+        factory.setJobInstanceIncrementerName("JOB_SEQ");
         factory.afterPropertiesSet();
         return factory.getObject();
     }
 
     @Bean
-    public JobExplorer jobExplorer(RoutingDataSource routingDataSource, PlatformTransactionManager transactionManager,
-            Jackson2ExecutionContextStringSerializer executionContextSerializer) throws Exception {
-        JobExplorerFactoryBean jobExplorerFactoryBean = new JobExplorerFactoryBean();
-        jobExplorerFactoryBean.setDataSource(routingDataSource);
-        jobExplorerFactoryBean.setTransactionManager(transactionManager);
-        jobExplorerFactoryBean.setSerializer(executionContextSerializer);
-        jobExplorerFactoryBean.afterPropertiesSet();
-        return jobExplorerFactoryBean.getObject();
+    public JobRegistry jobRegistry() {
+        return new MapJobRegistry();
     }
 
     @Bean
-    public TaskExecutorJobLauncher jobLauncher(JobRepository jobRepository) throws Exception {
-        TaskExecutorJobLauncher launcher = new TaskExecutorJobLauncher();
-        launcher.setJobRepository(jobRepository);
-        launcher.afterPropertiesSet();
-        return launcher;
+    public JobRegistrySmartInitializingSingleton jobRegistryInitializer(JobRegistry jobRegistry) {
+        return new JobRegistrySmartInitializingSingleton(jobRegistry);
+    }
+
+    @Bean
+    public TaskExecutorJobOperator jobOperator(JobRepository jobRepository, JobRegistry jobRegistry) throws Exception {
+        TaskExecutorJobOperator operator = new TaskExecutorJobOperator();
+        operator.setJobRepository(jobRepository);
+        operator.setJobRegistry(jobRegistry);
+        operator.afterPropertiesSet();
+        return operator;
     }
 }
