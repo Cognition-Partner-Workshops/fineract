@@ -93,9 +93,19 @@ spec:
         app: mifos-community
         tier: frontend
     spec:
+      automountServiceAccountToken: false
       initContainers:
         - name: init-myservice
           image: busybox:1.28
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+              ephemeral-storage: "64Mi"
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+              ephemeral-storage: "16Mi"
           command: ['sh', '-c', 'echo -e "Checking for the availability of Fineract server deployment"; while ! nc -z "fineract-server" 8443; do sleep 1; printf "-"; done; echo -e " >> Fineract server has started";']
       containers:
       - name: mifos-community
@@ -104,9 +114,11 @@ spec:
           limits:
             cpu: "1000m"
             memory: "1Gi"
+            ephemeral-storage: "1Gi"
           requests:
             cpu: "200m"
             memory: "0.5Gi"
+            ephemeral-storage: "256Mi"
         volumeMounts:
         - name: web-app-config
           mountPath: /usr/share/nginx/html/assets/configuration
