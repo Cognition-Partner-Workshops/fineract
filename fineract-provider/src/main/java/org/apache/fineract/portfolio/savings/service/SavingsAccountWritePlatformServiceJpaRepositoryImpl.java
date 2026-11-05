@@ -269,10 +269,17 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         for (SavingsAccount childSavingsAccount : this.savingAccountRepositoryWrapper.findByGsimId(gsimId)) {
             childSavingsAccountIds.add(childSavingsAccount.getId());
         }
+        final boolean legacyGroupSavingsAccount;
+        if (childSavingsAccountIds.isEmpty()) {
+            final SavingsAccount account = this.savingAccountRepositoryWrapper.findOneWithNotFoundDetection(gsimId);
+            legacyGroupSavingsAccount = account.getGroupId() != null && account.getGsim() == null;
+        } else {
+            legacyGroupSavingsAccount = false;
+        }
 
         for (JsonElement element : savingsArray) {
             final Long childAccountId = element.getAsJsonObject().get("childAccountId").getAsLong();
-            if (!childSavingsAccountIds.contains(childAccountId)) {
+            if (!childSavingsAccountIds.contains(childAccountId) && !(legacyGroupSavingsAccount && gsimId.equals(childAccountId))) {
                 throw new SavingsAccountNotFoundException(childAccountId);
             }
         }
