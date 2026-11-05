@@ -101,9 +101,11 @@ tasks.register('cucumber', JavaExec) {
             continue
         }
         def prefix = features.substring(pathStart, index)
-        def scheme = prefix ==~ /[A-Za-z][A-Za-z0-9+.-]*/
+        def scheme = prefix in ['classpath', 'file']
+        def windowsDrive = (prefix ==~ /[A-Za-z]/) && index + 1 < features.length() &&
+            (features[index + 1] in ['\\', '/'])
         def lineSelector = (features.substring(index + 1) =~ /^\d+(?=:|$)/).find()
-        if (!scheme && !lineSelector) {
+        if (!scheme && !windowsDrive && !lineSelector) {
             featurePaths.add(prefix)
             pathStart = index + 1
         }
