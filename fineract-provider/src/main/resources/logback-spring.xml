@@ -41,7 +41,11 @@
     <logger name="org.apache.fineract" level="${FINERACT_LOGGING_LEVEL:-INFO}"/>
     <logger name="liquibase" level="warn"/>
 
-    <if condition="${jsonLoggingEnabled} == true">
+    <condition class="ch.qos.logback.core.boolex.PropertyEqualityCondition">
+        <key>jsonLoggingEnabled</key>
+        <value>true</value>
+    </condition>
+    <if>
         <then>
             <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
                 <layout class="ch.qos.logback.contrib.json.classic.JsonLayout">
