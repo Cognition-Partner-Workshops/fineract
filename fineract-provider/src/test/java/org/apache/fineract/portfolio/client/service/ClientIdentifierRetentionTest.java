@@ -39,6 +39,7 @@ import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.domain.ClientIdentifier;
 import org.apache.fineract.portfolio.client.domain.ClientIdentifierRepository;
 import org.apache.fineract.portfolio.client.domain.ClientRepositoryWrapper;
+import org.apache.fineract.portfolio.client.exception.ClientIdentifierNotFoundException;
 import org.apache.fineract.portfolio.client.serialization.ClientIdentifierCommandFromApiJsonDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +69,7 @@ class ClientIdentifierRetentionTest {
         ReflectionTestUtils.setField(identifier, "id", 4L);
         when(identifiers.findById(4L)).thenReturn(Optional.of(identifier));
         when(clients.findOneWithNotFoundDetection(22L)).thenReturn(client);
+        when(client.getId()).thenReturn(22L);
         when(documents.count(org.mockito.ArgumentMatchers.<Specification<Document>>any())).thenReturn(1L);
         beans = new AnnotationConfigApplicationContext();
         beans.registerBean(DocumentRepository.class, () -> documents);
@@ -116,5 +118,23 @@ class ClientIdentifierRetentionTest {
         when(client.getClosureDate()).thenReturn(today.minusYears(7));
         service.deleteClientIdentifier(22L, 4L, 1L);
         verify(identifiers).delete(identifier);
+    }
+
+    @Test
+    void identifiersCannotBeDeletedThroughAnotherClient() {
+        when(documents.count(org.mockito.ArgumentMatchers.<Specification<Document>>any())).thenReturn(0L);
+        Client other = mock(Client.class);
+        when(other.getId()).thenReturn(23L);
+        ReflectionTestUtils.setField(identifier, "client", other);
+        assertThrows(ClientIdentifierNotFoundException.class, () -> service.deleteClientIdentifier(22L, 4L, 1L));
+        verify(identifiers, never()).delete(any(ClientIdentifier.class));
+    }
+
+    @Test
+    void identifiersWithoutAnOwnerCannotBeDeleted() {
+        when(documents.count(org.mockito.ArgumentMatchers.<Specification<Document>>any())).thenReturn(0L);
+        ReflectionTestUtils.setField(identifier, "client", null);
+        assertThrows(ClientIdentifierNotFoundException.class, () -> service.deleteClientIdentifier(22L, 4L, 1L));
+        verify(identifiers, never()).delete(any(ClientIdentifier.class));
     }
 }

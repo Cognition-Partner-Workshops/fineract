@@ -20,6 +20,7 @@ package org.apache.fineract.portfolio.client.service;
 
 import jakarta.persistence.PersistenceException;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.fineract.infrastructure.codes.domain.CodeValue;
 import org.apache.fineract.infrastructure.codes.domain.CodeValueRepositoryWrapper;
@@ -184,6 +185,9 @@ public class ClientIdentifierWritePlatformServiceJpaRepositoryImpl implements Cl
 
         final ClientIdentifier clientIdentifier = this.clientIdentifierRepository.findById(identifierId)
                 .orElseThrow(() -> new ClientIdentifierNotFoundException(identifierId));
+        if (clientIdentifier.client() == null || !Objects.equals(clientId, clientIdentifier.client().getId())) {
+            throw new ClientIdentifierNotFoundException(identifierId);
+        }
         retentionPolicy.validateIdentifierDeletion(clientIdentifier);
         this.clientIdentifierRepository.delete(clientIdentifier);
 
