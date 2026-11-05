@@ -19,6 +19,7 @@
 package org.apache.fineract.accounting.glaccount.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -51,6 +52,7 @@ import org.apache.fineract.accounting.glaccount.serialization.GLAccountCommandFr
 import org.apache.fineract.accounting.journalentry.domain.JournalEntryRepository;
 import org.apache.fineract.accounting.producttoaccountmapping.domain.ProductToGLAccountMappingRepository;
 import org.apache.fineract.infrastructure.codes.domain.CodeValueRepositoryWrapper;
+import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -133,13 +135,36 @@ class GLAccountWritePlatformServiceTest extends AccountingTestSupport {
     }
 
     @Test
-    void updateSavesOnlyChangedProperties() {
-        GLAccount account = mock(GLAccount.class);
+    void unchangedUpdateLeavesEntityIntactAndDoesNotSave() {
+        GLAccount account = new GLAccount().setName("Cash").setGlCode("1000").setType(GLAccountType.ASSET.getValue()).setUsage(1)
+                .setDescription("Opening cash");
         when(accounts.findById(7L)).thenReturn(Optional.of(account));
-        when(account.update(any())).thenReturn(Map.of(), Map.of("name", "renamed"));
-        service.updateGLAccount(7L, command("{\"name\":\"Cash\"}"));
+        CommandProcessingResult result = service.updateGLAccount(7L, command("{\"name\":\"Cash\",\"glCode\":\"1000\"}"));
+        assertEquals("Cash", account.getName());
+        assertEquals("1000", account.getGlCode());
+        assertEquals("Opening cash", account.getDescription());
+        assertEquals(GLAccountType.ASSET.getValue(), account.getType());
+        assertTrue(account.isDetailAccount());
+        assertTrue(account.isManualEntriesAllowed());
+        assertNull(result.getChanges());
         verify(accounts, never()).saveAndFlush(any());
-        service.updateGLAccount(7L, command("{\"name\":\"renamed\"}"));
+    }
+
+    @Test
+    void updateChangesEntityFieldsAndReturnsOnlyChangedProperties() {
+        GLAccount account = new GLAccount().setName("Cash").setGlCode("1000").setType(GLAccountType.ASSET.getValue()).setUsage(1)
+                .setDescription("Opening cash");
+        when(accounts.findById(7L)).thenReturn(Optional.of(account));
+        CommandProcessingResult result = service.updateGLAccount(7L, command(
+                "{\"name\":\"renamed\",\"glCode\":\"2000\",\"description\":\"Updated cash\",\"manualEntriesAllowed\":false,\"type\":1}"));
+        assertEquals("renamed", account.getName());
+        assertEquals("2000", account.getGlCode());
+        assertEquals("Updated cash", account.getDescription());
+        assertFalse(account.isManualEntriesAllowed());
+        assertEquals(GLAccountType.ASSET.getValue(), account.getType());
+        assertTrue(account.isDetailAccount());
+        assertEquals(Map.of("name", "renamed", "glCode", "2000", "description", "Updated cash", "manualEntriesAllowed", false),
+                result.getChanges());
         verify(accounts).saveAndFlush(account);
     }
 
