@@ -53,8 +53,12 @@ class SelfServiceAccountDisclosureTest {
     }
 
     private String response(String path, String json, int expectedStatus) throws Exception {
+        return response(path, json, 200, expectedStatus);
+    }
+
+    private String response(String path, String json, int initialStatus, int expectedStatus) throws Exception {
         AtomicReference<Object> entity = new AtomicReference<>(json);
-        AtomicInteger status = new AtomicInteger(200);
+        AtomicInteger status = new AtomicInteger(initialStatus);
         ContainerRequestContext request = mock(ContainerRequestContext.class);
         String input = "{\"accountNumber\":\"001234567890\"}";
         ByteArrayInputStream inputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
@@ -63,6 +67,7 @@ class SelfServiceAccountDisclosureTest {
         when(request.getUriInfo()).thenReturn(uri);
         when(uri.getPath()).thenReturn(path);
         ContainerResponseContext response = mock(ContainerResponseContext.class);
+        when(response.getStatus()).thenAnswer(i -> status.get());
         doAnswer(i -> {
             status.set(i.getArgument(0));
             return null;
@@ -138,5 +143,26 @@ class SelfServiceAccountDisclosureTest {
                 "{\"userMessageGlobalisationCode\":\"error.msg.beneficiary.accountNumber.001234567890.accountType.savings\"}");
         assertFalse(output.contains("001234567890"));
         assertTrue(output.contains("****7890"));
+    }
+
+    @Test
+    void duplicateAccountErrorMessagesAndNestedArgumentsAreMaskedWithoutAnAccountCodePrefix() throws Exception {
+        String body = "{\"developerMessage\":\"Duplicate account 001234567890\",\"errors\":["
+                + "{\"userMessageGlobalisationCode\":\"error.msg.savingsaccount.duplicate.accountNo\","
+                + "\"defaultUserMessage\":\"Account 001234567890 already exists\","
+                + "\"args\":[{\"value\":\"001234567890\"},12345678,null,true,42]}]}";
+        for (String resource : new String[] { "loans", "savingsaccounts" }) {
+            String output = response("v1/self/" + resource, body, 400, 400);
+            assertFalse(output.contains("001234567890"));
+            assertFalse(output.contains("12345678"));
+            JsonNode json = new ObjectMapper().readTree(output);
+            assertEquals("****7890", json.at("/errors/0/args/0/value").asText());
+            assertEquals("****5678", json.at("/errors/0/args/1").asText());
+            assertTrue(json.at("/errors/0/args/2").isNull());
+            assertTrue(json.at("/errors/0/args/3").isBoolean());
+            assertEquals(42, json.at("/errors/0/args/4").asInt());
+        }
+        assertEquals(body, response("v1/savingsaccounts", body, 400, 400));
+        assertEquals(body, response("v1/self/loans", body));
     }
 }
