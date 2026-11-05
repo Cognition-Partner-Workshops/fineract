@@ -54,9 +54,19 @@ spec:
         app: fineract-server
         tier: backend
     spec:
+      automountServiceAccountToken: false
       initContainers:
         - name: init-mydb
           image: busybox:1.28
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+              ephemeral-storage: "64Mi"
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+              ephemeral-storage: "16Mi"
           command: ['sh', '-c', 'echo -e "Checking for the availability of MYSQL server deployment"; while ! nc -z "fineractmysql" 3306; do sleep 1; printf "-"; done; echo -e " >> MYSQL server has started";']
       containers:
       - name: fineract-server
@@ -65,9 +75,11 @@ spec:
           limits:
             cpu: "1000m"
             memory: "2Gi"
+            ephemeral-storage: "1Gi"
           requests:
             cpu: "200m"
             memory: "1Gi"
+            ephemeral-storage: "256Mi"
         livenessProbe:
           httpGet:
             path: /fineract-provider/actuator/health/liveness
