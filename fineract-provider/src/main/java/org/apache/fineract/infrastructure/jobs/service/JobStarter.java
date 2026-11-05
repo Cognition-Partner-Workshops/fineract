@@ -105,7 +105,7 @@ public class JobStarter {
                             jobNameService.getJobByHumanReadableName(scheduledJobDetail.getJobName()).getEnumStyleName(),
                             jobParameterDTOSet).values())))
                     .toJobParameters();
-            JobExecution result = jobOperator.start(job, jobParameters);
+            JobExecution result = jobOperator.run(job, jobParameters);
             if (FAILED_STATUSES.contains(result.getStatus())) {
                 throw new JobExecutionException(result.getExitStatus().toString());
             }

@@ -152,7 +152,7 @@ public class InlineLoanCOBExecutorServiceImpl implements InlineExecutorService<L
                 .addJobParameters(new JobParameters(Set.copyOf(getJobParametersMap(loanIds, businessDate).values()))).toJobParameters();
         JobExecution jobExecution;
         try {
-            jobExecution = jobOperator.start(inlineLoanCOBJob, jobParameters);
+            jobExecution = jobOperator.run(inlineLoanCOBJob, jobParameters);
         } catch (Exception e) {
             log.error("{}{}", JOB_EXECUTION_FAILED_MESSAGE, jobName, e);
             throw new PlatformInternalServerException("error.msg.sheduler.job.execution.failed", JOB_EXECUTION_FAILED_MESSAGE, jobName, e);
