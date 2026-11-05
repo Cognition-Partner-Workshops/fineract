@@ -36,12 +36,15 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Provider
 @Component
 public class SelfServiceAccountNumberResponseFilter implements ContainerResponseFilter {
 
+    private static final Logger LOG = LoggerFactory.getLogger(SelfServiceAccountNumberResponseFilter.class);
     private static final Pattern ERROR_DIGITS = Pattern.compile("[0-9]{5,}");
     private final ObjectMapper mapper;
 
@@ -71,6 +74,9 @@ public class SelfServiceAccountNumberResponseFilter implements ContainerResponse
                 throw new IllegalArgumentException("Empty JSON response");
             }
         } catch (JsonProcessingException | IllegalArgumentException exception) {
+            IllegalStateException diagnostic = new IllegalStateException("Cannot safely serialize self-service response");
+            diagnostic.setStackTrace(exception.getStackTrace());
+            LOG.error("Cannot safely serialize self-service response ({})", exception.getClass().getName(), diagnostic);
             response.setStatus(500);
             response.setEntity("{\"message\":\"Cannot safely serialize self-service response\"}");
             response.getHeaders().remove(HttpHeaders.CONTENT_LENGTH);

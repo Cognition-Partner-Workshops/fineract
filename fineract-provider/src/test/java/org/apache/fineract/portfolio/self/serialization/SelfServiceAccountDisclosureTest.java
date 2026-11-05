@@ -29,6 +29,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxyUtil;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,6 +53,7 @@ import org.apache.fineract.infrastructure.core.serialization.ExcludeNothingWithP
 import org.apache.fineract.portfolio.self.registration.api.SelfServiceRegistrationApiResource;
 import org.apache.fineract.portfolio.self.registration.service.SelfServiceRegistrationWritePlatformService;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 class SelfServiceAccountDisclosureTest {
@@ -65,7 +70,7 @@ class SelfServiceAccountDisclosureTest {
         return response(path, json, initialStatus, expectedStatus, MediaType.APPLICATION_JSON_TYPE);
     }
 
-    private String response(String path, String json, int initialStatus, int expectedStatus, MediaType media) throws Exception {
+    private String response(String path, Object json, int initialStatus, int expectedStatus, MediaType media) throws Exception {
         AtomicReference<Object> entity = new AtomicReference<>(json);
         AtomicInteger status = new AtomicInteger(initialStatus);
         ContainerRequestContext request = mock(ContainerRequestContext.class);
@@ -202,5 +207,38 @@ class SelfServiceAccountDisclosureTest {
         String output = response("v1/self/registration", body, 200, 200, MediaType.valueOf(media));
         assertEquals(org.apache.fineract.portfolio.self.registration.SelfServiceApiConstants.createRequestSuccessMessage,
                 new ObjectMapper().readTree(output).asText());
+    }
+
+    @Test
+    void serializationFailuresLogStackTracesWithoutBodyOrExceptionMessages() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(SelfServiceAccountNumberResponseFilter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            for (Object body : new Object[] { "001234567890 malformed body", new FailingResponse() }) {
+                assertTrue(response("v1/self/clients", body, 200, 500, MediaType.APPLICATION_JSON_TYPE)
+                        .contains("Cannot safely serialize self-service response"));
+            }
+            assertEquals(2, appender.list.size());
+            for (ILoggingEvent event : appender.list) {
+                assertTrue(event.getThrowableProxy() != null);
+                assertTrue(event.getThrowableProxy().getStackTraceElementProxyArray().length > 0);
+                String diagnostic = event.getFormattedMessage() + ThrowableProxyUtil.asString(event.getThrowableProxy());
+                assertFalse(diagnostic.contains("001234567890"));
+                assertFalse(diagnostic.contains("malformed body"));
+                assertFalse(diagnostic.contains("sensitive exception message"));
+            }
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    private static final class FailingResponse {
+
+        public String getAccountNo() {
+            throw new IllegalArgumentException("001234567890 sensitive exception message");
+        }
     }
 }
