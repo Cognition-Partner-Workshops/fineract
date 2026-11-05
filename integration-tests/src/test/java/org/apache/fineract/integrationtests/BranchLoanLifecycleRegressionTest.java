@@ -32,7 +32,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.fineract.client.models.AdvancedPaymentData;
 import org.apache.fineract.client.models.PostLoanProductsRequest;
+import org.apache.fineract.client.util.JSON;
 import org.apache.fineract.integrationtests.common.ClientHelper;
+import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationType;
 import org.junit.jupiter.api.Test;
 
@@ -57,6 +59,55 @@ public class BranchLoanLifecycleRegressionTest extends BaseLoanIntegrationTest {
     @Test
     public void decliningProgressiveLifecycle() {
         lifecycle(false, true);
+    }
+
+    @Test
+    public void proposalPreviewTotalOwedCumulative() {
+        proposalPreviewTotalOwed(false);
+    }
+
+    @Test
+    public void proposalPreviewTotalOwedProgressive() {
+        proposalPreviewTotalOwed(true);
+    }
+
+    private void proposalPreviewTotalOwed(boolean progressive) {
+        runAt(DISBURSEMENT, () -> {
+            Long client = ClientHelper.createClient(ClientHelper.defaultClientCreationRequest().activationDate(DISBURSEMENT)).getClientId();
+            String strategy = progressive ? "advanced-payment-allocation-strategy" : "mifos-standard-strategy";
+            PostLoanProductsRequest product = create4IProgressive().principal(1200.0).numberOfRepayments(3).interestRatePerPeriod(12.0)
+                    .amortizationType(progressive ? 1 : 0).daysInMonthType(30).daysInYearType(360).isInterestRecalculationEnabled(false)
+                    .loanScheduleType(progressive ? "PROGRESSIVE" : "CUMULATIVE").transactionProcessingStrategyCode(strategy)
+                    .multiDisburseLoan(false).disallowExpectedDisbursements(false);
+            if (!progressive) {
+                product.paymentAllocation(null).creditAllocation(null).loanScheduleProcessingType(null);
+            }
+            Long productId = loanProductHelper.createLoanProduct(product).getResourceId();
+            JsonPath preview = JsonPath.from(
+                    Utils.performServerPost(requestSpec, responseSpec, "/fineract-provider/api/v1/loans?command=calculateLoanSchedule",
+                            new JSON().getGson()
+                                    .toJson(applyCumulativeLoanRequest(client, productId, DISBURSEMENT, 1200.0, 12.0, 3,
+                                            request -> request.amortizationType(progressive ? 1 : 0).interestCalculationPeriodType(1)
+                                                    .transactionProcessingStrategyCode(strategy)))));
+            List<Map<String, Object>> periods = preview.getList("periods.findAll { it.period != null }");
+            assertEquals(3, periods.size());
+            BigDecimal balance = new BigDecimal("1200");
+            BigDecimal factor = BigDecimal.ONE.add(RATE).pow(3, MathContext.DECIMAL128);
+            BigDecimal emi = balance.multiply(RATE).multiply(factor).divide(factor.subtract(BigDecimal.ONE), 2, RoundingMode.HALF_UP);
+            BigDecimal total = BigDecimal.ZERO;
+            for (int i = 0; i < 3; i++) {
+                BigDecimal interest = balance.multiply(RATE).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal principal = progressive ? i == 2 ? balance : emi.subtract(interest) : new BigDecimal("400");
+                BigDecimal due = principal.add(interest);
+                money(principal, periods.get(i).get("principalDue"), "preview principal");
+                money(interest, periods.get(i).get("interestDue"), "preview interest");
+                money(due, periods.get(i).get("totalOutstandingForPeriod"), "preview period outstanding");
+                total = total.add(due);
+                balance = balance.subtract(principal);
+            }
+            money(total, preview.get("totalRepaymentExpected"), "preview expected repayment");
+            money(total, preview.get("totalOutstanding"), "preview total owed");
+        });
     }
 
     private void lifecycle(boolean flat, boolean progressive) {

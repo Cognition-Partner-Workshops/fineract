@@ -431,7 +431,7 @@ public abstract class AbstractCumulativeLoanScheduleGenerator implements LoanSch
 
         loanApplicationTerms.resetFixedEmiAmount();
         final BigDecimal totalPrincipalPaid = BigDecimal.ZERO;
-        final BigDecimal totalOutstanding = BigDecimal.ZERO;
+        final BigDecimal totalOutstanding = scheduleParams.getTotalRepaymentExpected().getAmount().subtract(totalPrincipalPaid);
 
         updateCompoundingDetails(periods, scheduleParams, loanApplicationTerms);
         return LoanScheduleModel.from(periods, currency, scheduleParams.getLoanTermInDays(),
