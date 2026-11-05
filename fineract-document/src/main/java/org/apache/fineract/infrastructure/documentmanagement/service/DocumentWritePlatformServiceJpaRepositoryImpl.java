@@ -31,6 +31,7 @@ import org.apache.fineract.infrastructure.documentmanagement.domain.StorageType;
 import org.apache.fineract.infrastructure.documentmanagement.exception.ContentManagementException;
 import org.apache.fineract.infrastructure.documentmanagement.exception.DocumentNotFoundException;
 import org.apache.fineract.infrastructure.documentmanagement.exception.InvalidEntityTypeForDocumentManagementException;
+import org.apache.fineract.infrastructure.documentmanagement.retention.IdentityDocumentRetentionPolicy;
 import org.apache.fineract.infrastructure.event.business.domain.document.DocumentCreatedBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.domain.document.DocumentDeletedBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
@@ -52,14 +53,17 @@ public class DocumentWritePlatformServiceJpaRepositoryImpl implements DocumentWr
     private final DocumentRepository documentRepository;
     private final ContentRepositoryFactory contentRepositoryFactory;
     private final BusinessEventNotifierService businessEventNotifierService;
+    private final IdentityDocumentRetentionPolicy retentionPolicy;
 
     @Autowired
     public DocumentWritePlatformServiceJpaRepositoryImpl(final PlatformSecurityContext context, final DocumentRepository documentRepository,
-            final ContentRepositoryFactory documentStoreFactory, BusinessEventNotifierService businessEventNotifierService) {
+            final ContentRepositoryFactory documentStoreFactory, BusinessEventNotifierService businessEventNotifierService,
+            IdentityDocumentRetentionPolicy retentionPolicy) {
         this.context = context;
         this.documentRepository = documentRepository;
         this.contentRepositoryFactory = documentStoreFactory;
         this.businessEventNotifierService = businessEventNotifierService;
+        this.retentionPolicy = retentionPolicy;
     }
 
     @Transactional
@@ -120,6 +124,9 @@ public class DocumentWritePlatformServiceJpaRepositoryImpl implements DocumentWr
                     .orElseThrow(() -> new DocumentNotFoundException(documentCommand.getParentEntityType(),
                             documentCommand.getParentEntityId(), documentCommand.getId()));
 
+            if (documentCommand.isLocationChanged() || (inputStream != null && documentCommand.isFileNameChanged())) {
+                retentionPolicy.validateContentRemoval(documentForUpdate);
+            }
             final StorageType documentStoreType = documentForUpdate.storageType();
             oldLocation = documentForUpdate.getLocation();
             if (inputStream != null && documentCommand.isFileNameChanged()) {
@@ -158,6 +165,7 @@ public class DocumentWritePlatformServiceJpaRepositoryImpl implements DocumentWr
         final Document document = this.documentRepository.findById(documentCommand.getId())
                 .orElseThrow(() -> new DocumentNotFoundException(documentCommand.getParentEntityType(), documentCommand.getParentEntityId(),
                         documentCommand.getId()));
+        retentionPolicy.validateContentRemoval(document);
         this.documentRepository.delete(document);
 
         final ContentRepository contentRepository = this.contentRepositoryFactory.getRepository(document.storageType());

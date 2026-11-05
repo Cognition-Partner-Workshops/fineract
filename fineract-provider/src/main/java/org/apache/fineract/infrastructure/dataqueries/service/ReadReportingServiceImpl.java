@@ -56,6 +56,7 @@ import org.apache.fineract.infrastructure.dataqueries.exception.ReportNotFoundEx
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.service.SqlInjectionPreventerService;
 import org.apache.fineract.infrastructure.security.utils.LogParameterEscapeUtil;
+import org.apache.fineract.portfolio.self.serialization.SelfServiceAccountNumbers;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.openpdf.text.Document;
 import org.openpdf.text.PageSize;
@@ -125,7 +126,7 @@ public class ReadReportingServiceImpl implements ReadReportingService {
             log.debug("FINISHING Report/Request Name: {} - {}     Elapsed Time: {}", LogParameterEscapeUtil.escapeLogParameter(name),
                     type.replaceAll("[\n\r\t]", "_"), elapsed);
         }
-        return result;
+        return isSelfServiceUserReport ? SelfServiceAccountNumbers.maskReport(result) : result;
     }
 
     private String getSQLtoRun(final String name, final String type, final Map<String, String> queryParams,

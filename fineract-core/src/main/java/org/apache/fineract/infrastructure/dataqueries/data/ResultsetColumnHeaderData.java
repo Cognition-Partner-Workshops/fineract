@@ -81,6 +81,23 @@ public final class ResultsetColumnHeaderData implements Serializable {
         this.columnDisplayType = calcDisplayType();
     }
 
+    public ResultsetColumnHeaderData withColumnType(JdbcJavaType type) {
+        return new ResultsetColumnHeaderData(this, type);
+    }
+
+    private ResultsetColumnHeaderData(ResultsetColumnHeaderData source, JdbcJavaType type) {
+        this.columnName = source.columnName;
+        this.columnType = type;
+        this.columnLength = source.columnLength;
+        this.isColumnNullable = source.isColumnNullable;
+        this.isColumnPrimaryKey = source.isColumnPrimaryKey;
+        this.isColumnUnique = source.isColumnUnique;
+        this.isColumnIndexed = source.isColumnIndexed;
+        this.columnValues = source.columnValues;
+        this.columnCode = source.columnCode;
+        this.columnDisplayType = calcDisplayType();
+    }
+
     public boolean isNamed(final String columnName) {
         return this.columnName.equalsIgnoreCase(columnName);
     }

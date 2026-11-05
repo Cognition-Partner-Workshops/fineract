@@ -25,6 +25,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.apache.fineract.infrastructure.dataqueries.service.DatatableExportTargetParameter;
 import org.apache.fineract.infrastructure.dataqueries.service.ReadReportingService;
+import org.apache.fineract.portfolio.self.serialization.SelfServiceAccountNumbers;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -40,7 +41,8 @@ public class CsvDatatableReportExportServiceImpl implements DatatableReportExpor
                 isSelfServiceUserReport);
         return new ResponseHolder(Response.Status.OK).contentType("text/csv")
                 .addHeader("Content-Disposition",
-                        "attachment;filename=" + DatatableExportUtil.generatePlainExportFileName(255, "csv", reportName, reportParams))
+                        "attachment;filename=" + DatatableExportUtil.generatePlainExportFileName(255, "csv", reportName,
+                                isSelfServiceUserReport ? SelfServiceAccountNumbers.maskReportParameters(reportParams) : reportParams))
                 .entity(result);
     }
 
