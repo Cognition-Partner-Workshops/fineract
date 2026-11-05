@@ -18,7 +18,12 @@
  */
 package org.apache.fineract.portfolio.loanaccount.service;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -27,13 +32,26 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.apache.fineract.accounting.journalentry.service.JournalEntryWritePlatformService;
+import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
+import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
+import org.apache.fineract.infrastructure.core.domain.ActionContext;
+import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
+import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.jobs.exception.JobExecutionException;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
+import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanStatus;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -43,6 +61,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -65,6 +84,28 @@ public class LoanAccrualsProcessingServiceImplTest {
 
     @Mock
     private JournalEntryWritePlatformService journalEntryWritePlatformService;
+
+    @Mock
+    private LoanRepositoryWrapper loanRepositoryWrapper;
+
+    @Mock
+    private ConfigurationDomainService configurationDomainService;
+
+    @Mock
+    private ThreadPoolTaskExecutor taskExecutor;
+
+    @BeforeEach
+    void setUpContext() {
+        ThreadLocalContextUtil.setTenant(new FineractPlatformTenant(1L, "default", "Default", "Asia/Kolkata", null));
+        ThreadLocalContextUtil.setActionContext(ActionContext.DEFAULT);
+        ThreadLocalContextUtil
+                .setBusinessDates(new HashMap<>(Map.of(BusinessDateType.BUSINESS_DATE, LocalDate.now(ZoneId.systemDefault()))));
+    }
+
+    @AfterEach
+    void resetContext() {
+        ThreadLocalContextUtil.reset();
+    }
 
     @BeforeEach
     void setUp() {
@@ -93,6 +134,21 @@ public class LoanAccrualsProcessingServiceImplTest {
         verifyNoInteractions(journalEntryWritePlatformService);
         verify(businessEventNotifierService, never()).notifyPostBusinessEvent(any());
         verify(loan, never()).addLoanTransaction(any());
+    }
+
+    @Test
+    void addAccruals_ShouldRestoreInterruptStatus_WhenInterruptedWhileWaitingForLoanTasks() throws Exception {
+        final LocalDate tillDate = LocalDate.now(ZoneId.systemDefault());
+        when(loanRepositoryWrapper.findLoansForAddAccrual(any(), any(), anyBoolean())).thenReturn(List.of(loan));
+        Future<?> future = mock(Future.class);
+        when(future.get()).thenThrow(new InterruptedException("interrupted"));
+        doReturn(future).when(taskExecutor).submit(any(Runnable.class));
+        try {
+            assertThrows(JobExecutionException.class, () -> accrualsProcessingService.addAccruals(tillDate));
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     private static Stream<Arguments> loanStatusTestCases() {

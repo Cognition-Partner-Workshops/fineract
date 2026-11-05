@@ -128,6 +128,6 @@ public final class BatchRequestContextHolder {
     }
 
     public static void resetTransaction() {
-        batchTransaction.set(Optional.empty());
+        batchTransaction.remove();
     }
 }

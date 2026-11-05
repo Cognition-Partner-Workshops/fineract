@@ -156,7 +156,7 @@ public class BusinessEventNotifierServiceImpl implements BusinessEventNotifierSe
 
     @Override
     public void stopExternalEventRecording() {
-        eventRecordingEnabled.set(false);
+        eventRecordingEnabled.remove();
         try {
             List<BusinessEvent<?>> recordedBusinessEvents = recordedEvents.get();
             if (isExternalEventPostingEnabled()) {
@@ -179,7 +179,7 @@ public class BusinessEventNotifierServiceImpl implements BusinessEventNotifierSe
 
     @Override
     public void resetEventRecording() {
-        eventRecordingEnabled.set(false);
+        eventRecordingEnabled.remove();
         recordedEvents.remove();
     }
 
@@ -191,6 +191,9 @@ public class BusinessEventNotifierServiceImpl implements BusinessEventNotifierSe
 
     private void cleanup() {
         transactionBusinessEvents.get().pop();
+        if (transactionBusinessEvents.get().empty()) {
+            transactionBusinessEvents.remove();
+        }
     }
 
     @Override
