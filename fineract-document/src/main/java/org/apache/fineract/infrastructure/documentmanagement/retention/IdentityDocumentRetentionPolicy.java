@@ -55,7 +55,8 @@ public class IdentityDocumentRetentionPolicy {
                 builder.equal(builder.lower(root.<String>get("parentEntityType")), "client_identifiers"),
                 builder.equal(root.get("parentEntityId"), identifier.getId())));
         if (count > 0) {
-            validateClient(identifier.client());
+            throw new GeneralPlatformDomainRuleException("error.msg.client.identifier.documents.exist",
+                    "Delete the identifier's documents before deleting the identifier.");
         }
     }
 

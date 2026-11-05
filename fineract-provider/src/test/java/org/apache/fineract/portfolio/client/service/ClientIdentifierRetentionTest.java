@@ -21,6 +21,8 @@ package org.apache.fineract.portfolio.client.service;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -29,11 +31,20 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.fineract.infrastructure.codes.domain.CodeValueRepositoryWrapper;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
+import org.apache.fineract.infrastructure.documentmanagement.command.DocumentCommand;
+import org.apache.fineract.infrastructure.documentmanagement.contentrepository.ContentRepository;
+import org.apache.fineract.infrastructure.documentmanagement.contentrepository.ContentRepositoryFactory;
 import org.apache.fineract.infrastructure.documentmanagement.domain.Document;
 import org.apache.fineract.infrastructure.documentmanagement.domain.DocumentRepository;
+import org.apache.fineract.infrastructure.documentmanagement.domain.StorageType;
+import org.apache.fineract.infrastructure.documentmanagement.retention.IdentityDocumentRetentionPolicy;
+import org.apache.fineract.infrastructure.documentmanagement.service.DocumentWritePlatformServiceJpaRepositoryImpl;
+import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.client.domain.Client;
 import org.apache.fineract.portfolio.client.domain.ClientIdentifier;
@@ -113,11 +124,41 @@ class ClientIdentifierRetentionTest {
     }
 
     @Test
-    void identifiersBecomeDeletableAfterTheRetentionPeriod() {
+    void expiredDocumentsStillPreventIdentifierDeletion() {
         when(client.isClosed()).thenReturn(true);
         when(client.getClosureDate()).thenReturn(today.minusYears(7));
+        assertThrows(GeneralPlatformDomainRuleException.class, () -> service.deleteClientIdentifier(22L, 4L, 1L));
+        verify(identifiers, never()).delete(any(ClientIdentifier.class));
+    }
+
+    @Test
+    void staffDeleteExpiredDocumentsBeforeDeletingTheirIdentifier() {
+        when(client.isClosed()).thenReturn(true);
+        when(client.getClosureDate()).thenReturn(today.minusYears(7));
+        Document document = Document.createNew("client_identifiers", 4L, "ID", "id.pdf", 2L, "application/pdf", "ID", "/expired",
+                StorageType.FILE_SYSTEM);
+        ReflectionTestUtils.setField(document, "id", 8L);
+        AtomicBoolean attached = new AtomicBoolean(true);
+        when(documents.count(org.mockito.ArgumentMatchers.<Specification<Document>>any())).thenAnswer(i -> attached.get() ? 1L : 0L);
+        when(documents.findById(8L)).thenReturn(Optional.of(document));
+        doAnswer(i -> {
+            attached.set(false);
+            return null;
+        }).when(documents).delete(document);
+        ContentRepositoryFactory stores = mock(ContentRepositoryFactory.class);
+        ContentRepository store = mock(ContentRepository.class);
+        when(stores.getRepository(StorageType.FILE_SYSTEM)).thenReturn(store);
+        var documentWrites = new DocumentWritePlatformServiceJpaRepositoryImpl(mock(PlatformSecurityContext.class), documents, stores,
+                mock(BusinessEventNotifierService.class), beans.getBean(IdentityDocumentRetentionPolicy.class));
+
+        assertThrows(GeneralPlatformDomainRuleException.class, () -> service.deleteClientIdentifier(22L, 4L, 1L));
+        verify(identifiers, never()).delete(any(ClientIdentifier.class));
+        documentWrites.deleteDocument(new DocumentCommand(Set.of(), 8L, "client_identifiers", 4L, null, null, null, null, null, null));
         service.deleteClientIdentifier(22L, 4L, 1L);
-        verify(identifiers).delete(identifier);
+        var order = inOrder(documents, store, identifiers);
+        order.verify(documents).delete(document);
+        order.verify(store).deleteFile("/expired");
+        order.verify(identifiers).delete(identifier);
     }
 
     @Test
