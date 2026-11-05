@@ -18,6 +18,8 @@
  */
 dependencies {
     cargo 'org.codehaus.cargo:cargo-core-uberjar:1.10.30'
+    cargo 'org.codehaus.cargo:cargo-ant:1.10.30'
+    cargo 'org.codehaus.cargo:cargo-licensed-dtds:1.10.30'
     // testCompile dependencies are ONLY used in src/test, not src/main.
     // Do NOT repeat dependencies which are ALREADY in implementation or runtimeOnly!
     //

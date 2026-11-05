@@ -18,7 +18,7 @@
  */
 description = 'Fineract Integration Tests for OAuth2'
 
-apply plugin: 'com.bmuschko.cargo'
+apply plugin: 'org.apache.fineract.cargo-local'
 
 // Configuration for the Gradle Cargo plugin
 // https://github.com/bmuschko/gradle-cargo-plugin

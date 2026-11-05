@@ -57,6 +57,10 @@ java {
 }
 
 dependencies {
+    implementation 'com.bmuschko:gradle-cargo-plugin:2.9.0'
+    testImplementation gradleTestKit()
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     implementation 'org.eclipse.angus:angus-activation'
     implementation 'com.sun.mail:jakarta.mail'
     implementation 'org.freemarker:freemarker'
@@ -78,4 +82,17 @@ dependencies {
     implementation 'com.squareup.retrofit2:converter-jackson'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.squareup.okhttp3:okhttp'
+}
+
+gradlePlugin {
+    plugins {
+        cargoLocal {
+            id = 'org.apache.fineract.cargo-local'
+            implementationClass = 'org.apache.fineract.gradle.CargoLocalPlugin'
+        }
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }

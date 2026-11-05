@@ -18,7 +18,7 @@
  */
 description = 'Fineract Integration Tests'
 
-apply plugin: 'com.bmuschko.cargo'
+apply plugin: 'org.apache.fineract.cargo-local'
 
 // Configuration for the Gradle Cargo plugin
 // https://github.com/bmuschko/gradle-cargo-plugin
@@ -148,7 +148,7 @@ tasks.named('test').configure {
 
 if (!project.hasProperty('cargoDisabled')) {
     cargoStartLocal.mustRunAfter testClasses
-    waitForFineract.mustRunAfter cargoStartLocal
+    waitForFineract.dependsOn cargoStartLocal
 }
 
 // Configure proper test output directories

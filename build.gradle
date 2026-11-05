@@ -89,7 +89,6 @@ buildscript {
     dependencies {
         classpath 'org.apache.maven:maven-plugin-api:3.9.11'
         classpath "org.apache.groovy:groovy-sql:${GroovySystem.version}"
-        classpath 'com.bmuschko:gradle-cargo-plugin:2.9.0'
         classpath 'org.eclipse.persistence:eclipselink:5.0.2'
         classpath 'jakarta.ws.rs:jakarta.ws.rs-api:4.0.0'
         classpath 'com.google.cloud.tools:jib-layer-filter-extension-gradle:0.3.0'
