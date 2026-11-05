@@ -106,9 +106,9 @@ public class SelfServiceAccountNumberResponseFilter implements ContainerResponse
             for (int index = 0; index < array.size(); index++) {
                 array.set(index, mask(array.get(index), error, redactErrorValue));
             }
-        } else if (node.isTextual() || (redactErrorValue && node.isNumber())) {
+        } else if (node.isTextual()) {
             String value = node.asText();
-            String masked = node.isTextual() ? SelfServiceAccountNumbers.maskErrorCode(value) : value;
+            String masked = SelfServiceAccountNumbers.maskErrorCode(value);
             if (redactErrorValue) {
                 masked = ERROR_DIGITS.matcher(masked).replaceAll(match -> SelfServiceAccountNumbers.mask(match.group()));
             }

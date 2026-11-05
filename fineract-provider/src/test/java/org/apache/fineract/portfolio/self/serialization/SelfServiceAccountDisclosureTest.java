@@ -168,16 +168,33 @@ class SelfServiceAccountDisclosureTest {
         for (String resource : new String[] { "loans", "savingsaccounts" }) {
             String output = response("v1/self/" + resource, body, 400, 400);
             assertFalse(output.contains("001234567890"));
-            assertFalse(output.contains("12345678"));
             JsonNode json = new ObjectMapper().readTree(output);
             assertEquals("****7890", json.at("/errors/0/args/0/value").asText());
-            assertEquals("****5678", json.at("/errors/0/args/1").asText());
+            assertTrue(json.at("/errors/0/args/1").isIntegralNumber());
+            assertEquals(12345678, json.at("/errors/0/args/1").asInt());
             assertTrue(json.at("/errors/0/args/2").isNull());
             assertTrue(json.at("/errors/0/args/3").isBoolean());
             assertEquals(42, json.at("/errors/0/args/4").asInt());
         }
         assertEquals(body, response("v1/savingsaccounts", body, 400, 400));
         assertEquals(body, response("v1/self/loans", body));
+    }
+
+    @Test
+    void errorNumbersKeepTheirTypesWhileStringArgumentsAreMasked() throws Exception {
+        String body = "{\"message\":\"Account 12345678 already exists\","
+                + "\"args\":[12345,12345678901234567890,12345.67,-12345,{\"value\":12345},\"12345678\",null,true]," + "\"count\":12345}";
+        JsonNode output = new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+                .readTree(response("v1/self/loans", body, 400, 400));
+        JsonNode input = new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).readTree(body);
+        for (int index = 0; index < 5; index++) {
+            assertEquals(input.at("/args/" + index), output.at("/args/" + index));
+        }
+        assertEquals("****5678", output.at("/args/5").asText());
+        assertTrue(output.at("/args/6").isNull());
+        assertTrue(output.at("/args/7").isBoolean());
+        assertEquals("Account ****5678 already exists", output.get("message").asText());
+        assertEquals(input.get("count"), output.get("count"));
     }
 
     @Test
