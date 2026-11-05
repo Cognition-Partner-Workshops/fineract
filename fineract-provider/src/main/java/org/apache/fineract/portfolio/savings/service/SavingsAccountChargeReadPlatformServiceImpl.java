@@ -174,9 +174,11 @@ public class SavingsAccountChargeReadPlatformServiceImpl implements SavingsAccou
 
             final SavingsAccountChargeMapper rm = new SavingsAccountChargeMapper();
 
-            final String sql = "select " + rm.schema() + " where sc.id=? and sc.savings_account_id=?";
+            final String sql = "select " + rm.schema() + " where sc.id=? and sc.savings_account_id=?"
+                    + SavingsAccountOfficeScope.sqlFilter("sc.savings_account_id");
 
-            return this.jdbcTemplate.queryForObject(sql, rm, new Object[] { id, savingsAccountId }); // NOSONAR
+            return this.jdbcTemplate.queryForObject(sql, rm,
+                    new Object[] { id, savingsAccountId, SavingsAccountOfficeScope.hierarchySearchString(this.context) }); // NOSONAR
         } catch (final EmptyResultDataAccessException e) {
             throw new SavingsAccountChargeNotFoundException(savingsAccountId, e);
         }
@@ -188,7 +190,8 @@ public class SavingsAccountChargeReadPlatformServiceImpl implements SavingsAccou
 
         final SavingsAccountChargeMapper rm = new SavingsAccountChargeMapper();
         final StringBuilder sqlBuilder = new StringBuilder();
-        sqlBuilder.append("select ").append(rm.schema()).append(" where sc.savings_account_id=? ");
+        sqlBuilder.append("select ").append(rm.schema()).append(" where sc.savings_account_id=? ")
+                .append(SavingsAccountOfficeScope.sqlFilter("sc.savings_account_id"));
         if (status.equalsIgnoreCase("active")) {
             sqlBuilder.append(" and sc.is_active = true ");
         } else if (status.equalsIgnoreCase("inactive")) {
@@ -196,7 +199,8 @@ public class SavingsAccountChargeReadPlatformServiceImpl implements SavingsAccou
         }
         sqlBuilder.append(" order by sc.charge_time_enum ASC, sc.charge_due_date ASC, sc.is_penalty ASC");
 
-        return this.jdbcTemplate.query(sqlBuilder.toString(), rm, new Object[] { loanId });
+        return this.jdbcTemplate.query(sqlBuilder.toString(), rm,
+                new Object[] { loanId, SavingsAccountOfficeScope.hierarchySearchString(this.context) });
     }
 
     private static final class SavingsAccountChargeDueMapper implements RowMapper<SavingsAccountAnnualFeeData> {

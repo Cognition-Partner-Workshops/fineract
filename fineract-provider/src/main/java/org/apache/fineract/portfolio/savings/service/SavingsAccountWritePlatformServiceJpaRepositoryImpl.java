@@ -868,6 +868,12 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         throw new PlatformApiDataValidationException(dataValidationErrors);
     }
 
+    private void validateOfficeAccess(final SavingsAccount account) {
+        if (account.office() != null) {
+            this.context.validateAccessRights(account.office().getHierarchy());
+        }
+    }
+
     private void checkClientOrGroupActive(final SavingsAccount account) {
         final Client client = account.getClient();
         if (client != null) {
@@ -1111,6 +1117,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.savingsAccountChargeDataValidator.validateAdd(command.json());
 
         final SavingsAccount savingsAccount = this.savingAccountAssembler.assembleFrom(savingsAccountId, false);
+        validateOfficeAccess(savingsAccount);
         checkClientOrGroupActive(savingsAccount);
 
         final Locale locale = command.extractLocale();
@@ -1180,6 +1187,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         final Long savingsChargeId = command.entityId();
 
         final SavingsAccount savingsAccount = this.savingAccountAssembler.assembleFrom(savingsAccountId, false);
+        validateOfficeAccess(savingsAccount);
         checkClientOrGroupActive(savingsAccount);
 
         final SavingsAccountCharge savingsAccountCharge = this.savingsAccountChargeRepository.findOneWithNotFoundDetection(savingsChargeId,
@@ -1238,6 +1246,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         // Get Savings account from savings charge
         final SavingsAccount account = savingsAccountCharge.savingsAccount();
 
+        validateOfficeAccess(account);
         final boolean backdatedTxnsAllowedTill = this.savingAccountAssembler.getPivotConfigStatus();
 
         this.savingAccountAssembler.loadTransactionsToSavingsAccount(account, backdatedTxnsAllowedTill);
@@ -1299,6 +1308,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
         this.context.authenticatedUser();
 
         final SavingsAccount savingsAccount = this.savingAccountAssembler.assembleFrom(savingsAccountId, false);
+        validateOfficeAccess(savingsAccount);
         checkClientOrGroupActive(savingsAccount);
         final SavingsAccountCharge savingsAccountCharge = this.savingsAccountChargeRepository
                 .findOneWithNotFoundDetection(savingsAccountChargeId, savingsAccountId);
@@ -1327,6 +1337,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
 
         final SavingsAccountCharge savingsAccountCharge = this.savingsAccountChargeRepository
                 .findOneWithNotFoundDetection(savingsAccountChargeId, savingsAccountId);
+        validateOfficeAccess(savingsAccountCharge.savingsAccount());
 
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
@@ -1485,6 +1496,7 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
                 .findOneWithNotFoundDetection(savingsAccountChargeId, savingsAccountId);
 
         final SavingsAccount account = savingsAccountCharge.savingsAccount();
+        validateOfficeAccess(account);
         this.savingAccountAssembler.assignSavingAccountHelpers(account);
 
         final LocalDate inactivationOnDate = DateUtils.getBusinessLocalDate();

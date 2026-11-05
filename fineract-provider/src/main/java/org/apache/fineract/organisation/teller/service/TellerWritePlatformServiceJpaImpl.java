@@ -20,6 +20,7 @@ package org.apache.fineract.organisation.teller.service;
 
 import jakarta.persistence.PersistenceException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -84,9 +85,8 @@ public class TellerWritePlatformServiceJpaImpl implements TellerWritePlatformSer
 
             this.fromApiJsonDeserializer.validateForCreateAndUpdateTeller(command.json());
 
-            // final Office parent =
-            // validateUserPriviledgeOnOfficeAndRetrieve(currentUser, officeId);
             final Office tellerOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(officeId);
+            this.context.validateAccessRights(tellerOffice.getHierarchy());
             final Teller teller = Teller.fromJson(tellerOffice, command);
 
             // pre save to generate id for use in office hierarchy
@@ -119,6 +119,7 @@ public class TellerWritePlatformServiceJpaImpl implements TellerWritePlatformSer
             this.fromApiJsonDeserializer.validateForCreateAndUpdateTeller(command.json());
 
             final Teller teller = validateUserPriviledgeOnTellerAndRetrieve(currentUser, tellerId);
+            this.context.validateAccessRights(tellerOffice.getHierarchy());
 
             final Map<String, Object> changes = teller.update(tellerOffice, command);
 
@@ -163,7 +164,7 @@ public class TellerWritePlatformServiceJpaImpl implements TellerWritePlatformSer
     public CommandProcessingResult deleteTeller(Long tellerId) {
         // TODO Auto-generated method stub
 
-        Teller teller = tellerRepositoryWrapper.findOneWithNotFoundDetection(tellerId);
+        Teller teller = validateUserPriviledgeOnTellerAndRetrieve(this.context.authenticatedUser(), tellerId);
         Set<Cashier> isTellerIdPresentInCashier = teller.getCashiers();
 
         for (final Cashier tellerIdInCashier : isTellerIdPresentInCashier) {
@@ -197,14 +198,14 @@ public class TellerWritePlatformServiceJpaImpl implements TellerWritePlatformSer
     @Override
     public CommandProcessingResult allocateCashierToTeller(final Long tellerId, JsonCommand command) {
         try {
-            this.context.authenticatedUser();
+            final AppUser currentUser = this.context.authenticatedUser();
             Long hourStartTime;
             Long minStartTime;
             Long hourEndTime;
             Long minEndTime;
             String startTime = " ";
             String endTime = " ";
-            final Teller teller = this.tellerRepositoryWrapper.findOneWithNotFoundDetection(tellerId);
+            final Teller teller = validateUserPriviledgeOnTellerAndRetrieve(currentUser, tellerId);
             final Office tellerOffice = teller.getOffice();
 
             final Long staffId = command.longValueOfParameterNamed("staffId");
@@ -293,9 +294,16 @@ public class TellerWritePlatformServiceJpaImpl implements TellerWritePlatformSer
 
     private Cashier validateUserPriviledgeOnCashierAndRetrieve(final AppUser currentUser, final Long tellerId, final Long cashierId) {
 
-        validateUserPriviledgeOnTellerAndRetrieve(currentUser, tellerId);
+        final Teller teller = validateUserPriviledgeOnTellerAndRetrieve(currentUser, tellerId);
+        final Cashier cashier = this.cashierRepository.findById(cashierId).orElseThrow(() -> new CashierNotFoundException(cashierId));
+        validateCashierBelongsToTeller(cashier, teller.getId());
+        return cashier;
+    }
 
-        return this.cashierRepository.findById(cashierId).orElse(null);
+    private void validateCashierBelongsToTeller(final Cashier cashier, final Long tellerId) {
+        if (cashier.getTeller() == null || !Objects.equals(cashier.getTeller().getId(), tellerId)) {
+            throw new CashierNotFoundException(cashier.getId());
+        }
     }
 
     @Override
@@ -352,6 +360,8 @@ public class TellerWritePlatformServiceJpaImpl implements TellerWritePlatformSer
             final AppUser currentUser = this.context.authenticatedUser();
 
             final Cashier cashier = this.cashierRepository.findById(cashierId).orElseThrow(() -> new CashierNotFoundException(cashierId));
+            validateCashierBelongsToTeller(cashier, command.entityId());
+            this.context.validateAccessRights(cashier.getTeller().getOffice().getHierarchy());
 
             this.fromApiJsonDeserializer.validateForCashTxnForCashier(command.json());
 

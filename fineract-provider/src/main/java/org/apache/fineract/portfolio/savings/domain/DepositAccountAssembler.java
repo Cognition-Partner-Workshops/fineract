@@ -365,8 +365,15 @@ public class DepositAccountAssembler {
 
     public SavingsAccount assembleFrom(final Long savingsId, DepositAccountType depositAccountType) {
         final SavingsAccount account = this.savingsAccountRepository.findOneWithNotFoundDetection(savingsId, depositAccountType);
+        validateOfficeAccess(account);
         account.setHelpers(this.savingsAccountTransactionSummaryWrapper, this.savingsHelper);
         return account;
+    }
+
+    private void validateOfficeAccess(final SavingsAccount account) {
+        if (this.context.getAuthenticatedUserIfPresent() != null && account.office() != null) {
+            this.context.validateAccessRights(account.office().getHierarchy());
+        }
     }
 
     public void assignSavingAccountHelpers(final SavingsAccount savingsAccount) {
