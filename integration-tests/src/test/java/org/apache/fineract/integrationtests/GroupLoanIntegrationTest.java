@@ -126,6 +126,42 @@ public class GroupLoanIntegrationTest {
     }
 
     @Test
+    public void rejectsGlimApprovalForLoanOutsideParentAccount() {
+        this.loanTransactionHelper = new LoanTransactionHelper(this.requestSpec, this.responseSpec);
+        final Integer loanProductID = createLoanProduct();
+
+        final Integer firstClientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        Integer firstGroupId = GroupHelper.createGroup(this.requestSpec, this.responseSpec, true);
+        firstGroupId = GroupHelper.associateClient(this.requestSpec, this.responseSpec, firstGroupId.toString(), firstClientId.toString());
+        final HashMap<String, Integer> firstGlim = applyForGlimApplication(firstClientId, firstGroupId, loanProductID);
+
+        final Integer secondClientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        Integer secondGroupId = GroupHelper.createGroup(this.requestSpec, this.responseSpec, true);
+        secondGroupId = GroupHelper.associateClient(this.requestSpec, this.responseSpec, secondGroupId.toString(),
+                secondClientId.toString());
+        final HashMap<String, Integer> secondGlim = applyForGlimApplication(secondClientId, secondGroupId, loanProductID);
+
+        final Integer firstGlimId = firstGlim.get("glimId");
+        final Integer firstLoanId = firstGlim.get("loanId");
+        final Integer secondLoanId = secondGlim.get("loanId");
+        final String approvedOnDate = "20 September 2011";
+
+        final HashMap approvedLoan = this.loanTransactionHelper.approveGlimAccount(this.requestSpec, this.responseSpec,
+                List.of(approvalFormData(firstLoanId, approvedOnDate)), firstGlimId);
+        LoanStatusChecker.verifyLoanIsApproved(approvedLoan);
+
+        final String approvalForm = new LoanApplicationTestBuilder()
+                .withApprovalFormData(List.of(approvalFormData(secondLoanId, approvedOnDate))).build();
+        final io.restassured.response.Response response = io.restassured.RestAssured.given().spec(this.requestSpec)
+                .contentType(ContentType.JSON).body(approvalForm)
+                .post("/fineract-provider/api/v1/loans/glimAccount/" + firstGlimId + "?command=approve&" + Utils.TENANT_IDENTIFIER);
+
+        Assertions.assertTrue(response.statusCode() >= 400 && response.statusCode() < 500,
+                "Expected approval of a loan outside the GLIM account to be rejected, got " + response.statusCode() + ": "
+                        + response.asString());
+    }
+
+    @Test
     public void getGlimAccountByGroupId() {
         this.loanTransactionHelper = new LoanTransactionHelper(this.requestSpec, this.responseSpec);
 

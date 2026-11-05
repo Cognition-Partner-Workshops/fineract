@@ -41,6 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
@@ -56,6 +57,7 @@ import org.apache.fineract.infrastructure.event.business.domain.loan.LoanRejecte
 import org.apache.fineract.infrastructure.event.business.domain.loan.LoanUndoApprovalBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.domain.loan.LoanWithdrawnByApplicantBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.account.domain.AccountAssociationType;
 import org.apache.fineract.portfolio.account.domain.AccountAssociations;
@@ -124,6 +126,7 @@ public class LoanApplicationWritePlatformServiceJpaRepositoryImpl implements Loa
     private final EntityDatatableChecksWritePlatformService entityDatatableChecksWritePlatformService;
     private final GLIMAccountInfoRepository glimRepository;
     private final LoanRepository loanRepository;
+    private final ConfigurationDomainService configurationDomainService;
     private final GSIMReadPlatformService gsimReadPlatformService;
     private final LoanLifecycleStateMachine loanLifecycleStateMachine;
     private final LoanAccrualsProcessingService loanAccrualsProcessingService;
@@ -513,6 +516,7 @@ public class LoanApplicationWritePlatformServiceJpaRepositoryImpl implements Loa
     public CommandProcessingResult approveGLIMLoanAppication(final Long loanId, final JsonCommand command) {
         GroupLoanIndividualMonitoringAccount parentLoan = glimRepository.findById(loanId).orElseThrow();
         JsonArray approvalFormData = command.arrayOfParameterNamed("approvalFormData");
+        List<Loan> glimChildLoans = loanRepository.findByGlimId(loanId);
 
         JsonObject jsonObject = null;
         JsonCommand childCommand = null;
@@ -524,6 +528,14 @@ public class LoanApplicationWritePlatformServiceJpaRepositoryImpl implements Loa
             jsonObject = approvalFormData.get(i).getAsJsonObject();
 
             childLoanId[i] = jsonObject.get("loanId").getAsLong();
+            Long currentChildLoanId = childLoanId[i];
+            Loan childLoan = glimChildLoans.stream().filter(loan -> loan.getId().equals(currentChildLoanId)).findFirst()
+                    .orElseThrow(() -> new NoAuthorizationException("Loan is not part of the GLIM account"));
+            context.validateAccessRights(childLoan.getOffice().getHierarchy());
+            context.authenticatedUser().validateHasPermissionTo("APPROVE_LOAN");
+            if (configurationDomainService.isMakerCheckerEnabledForTask("APPROVE_LOAN")) {
+                throw new NoAuthorizationException("Maker-checker is enabled for individual loan approvals");
+            }
         }
 
         CommandProcessingResult result = null;

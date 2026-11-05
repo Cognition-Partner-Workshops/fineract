@@ -104,6 +104,7 @@ import org.apache.fineract.infrastructure.event.business.domain.loan.transaction
 import org.apache.fineract.infrastructure.event.business.domain.loan.transaction.LoanWrittenOffPostBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.domain.loan.transaction.LoanWrittenOffPreBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.holiday.domain.Holiday;
 import org.apache.fineract.organisation.holiday.domain.HolidayRepositoryWrapper;
@@ -912,6 +913,7 @@ public class LoanWritePlatformServiceJpaRepositoryImpl implements LoanWritePlatf
         glimRepository.findById(parentLoanId).orElseThrow();
 
         JsonArray repayments = command.arrayOfParameterNamed("formDataArray");
+        List<Loan> glimChildLoans = loanRepository.findByGlimId(parentLoanId);
         JsonCommand childCommand;
         CommandProcessingResult result = null;
         JsonObject jsonObject;
@@ -921,6 +923,14 @@ public class LoanWritePlatformServiceJpaRepositoryImpl implements LoanWritePlatf
             jsonObject = repayments.get(i).getAsJsonObject();
             log.debug("{}", jsonObject.toString());
             childLoanId[i] = jsonObject.get("loanId").getAsLong();
+            Long currentChildLoanId = childLoanId[i];
+            Loan childLoan = glimChildLoans.stream().filter(loan -> loan.getId().equals(currentChildLoanId)).findFirst()
+                    .orElseThrow(() -> new NoAuthorizationException("Loan is not part of the GLIM account"));
+            context.validateAccessRights(childLoan.getOffice().getHierarchy());
+            context.authenticatedUser().validateHasPermissionTo("REPAYMENT_LOAN");
+            if (configurationDomainService.isMakerCheckerEnabledForTask("REPAYMENT_LOAN")) {
+                throw new NoAuthorizationException("Maker-checker is enabled for individual loan repayments");
+            }
         }
         int j = 0;
         for (JsonElement element : repayments) {

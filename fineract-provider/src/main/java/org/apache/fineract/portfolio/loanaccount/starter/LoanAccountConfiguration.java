@@ -229,15 +229,16 @@ public class LoanAccountConfiguration {
             BusinessEventNotifierService businessEventNotifierService, LoanScheduleAssembler loanScheduleAssembler,
             LoanUtilService loanUtilService, CalendarReadPlatformService calendarReadPlatformService,
             EntityDatatableChecksWritePlatformService entityDatatableChecksWritePlatformService, GLIMAccountInfoRepository glimRepository,
-            LoanRepository loanRepository, GSIMReadPlatformService gsimReadPlatformService,
-            LoanLifecycleStateMachine loanLifecycleStateMachine, LoanAccrualsProcessingService loanAccrualsProcessingService,
+            LoanRepository loanRepository, ConfigurationDomainService configurationDomainService,
+            GSIMReadPlatformService gsimReadPlatformService, LoanLifecycleStateMachine loanLifecycleStateMachine,
+            LoanAccrualsProcessingService loanAccrualsProcessingService,
             LoanDownPaymentTransactionValidator loanDownPaymentTransactionValidator, LoanScheduleService loanScheduleService) {
         return new LoanApplicationWritePlatformServiceJpaRepositoryImpl(context, loanApplicationTransitionValidator,
                 loanApplicationValidator, loanRepositoryWrapper, noteRepository, loanAssembler, calendarRepository,
                 calendarInstanceRepository, savingsAccountRepository, accountAssociationsRepository, businessEventNotifierService,
                 loanScheduleAssembler, loanUtilService, calendarReadPlatformService, entityDatatableChecksWritePlatformService,
-                glimRepository, loanRepository, gsimReadPlatformService, loanLifecycleStateMachine, loanAccrualsProcessingService,
-                loanDownPaymentTransactionValidator, loanScheduleService);
+                glimRepository, loanRepository, configurationDomainService, gsimReadPlatformService, loanLifecycleStateMachine,
+                loanAccrualsProcessingService, loanDownPaymentTransactionValidator, loanScheduleService);
     }
 
     @Bean
