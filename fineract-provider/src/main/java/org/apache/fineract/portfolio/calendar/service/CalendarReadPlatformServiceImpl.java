@@ -376,18 +376,11 @@ public class CalendarReadPlatformServiceImpl implements CalendarReadPlatformServ
         final CalendarDataMapper rm = new CalendarDataMapper();
 
         final String sql = rm.schema() + " and ci.entity_id = ? and ci.entity_type_enum = ? order by c.start_date ";
-        CalendarData calendarData = null;
         final Collection<CalendarData> calendars = this.jdbcTemplate.query(sql, rm, // NOSONAR
                 new Object[] { loanId, CalendarEntityType.LOANS.getValue() });
 
-        if (!CollectionUtils.isEmpty(calendars)) {
-            for (final CalendarData calendar : calendars) {
-                calendarData = calendar;
-                break;// Loans are associated with only one calendar
-            }
-        }
-
-        return calendarData;
+        // Loans are associated with only one calendar
+        return CollectionUtils.isEmpty(calendars) ? null : calendars.stream().findFirst().orElse(null);
     }
 
     public static String getParentHierarchyCondition(final CalendarEntityType calendarEntityType) {
