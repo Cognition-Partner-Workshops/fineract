@@ -1,3 +1,5 @@
+-- SECURITY: m_appuser password hashes in this dump were replaced with an unusable placeholder (SSC-03).
+-- Reset the users' passwords after importing (e.g. UPDATE m_appuser SET password = <hash of a new password> ...).
 --
 -- Licensed to the Apache Software Foundation (ASF) under one
 -- or more contributor license agreements. See the NOTICE file
@@ -327,7 +329,7 @@ CREATE TABLE `m_appuser` (
 
 LOCK TABLES `m_appuser` WRITE;
 /*!40000 ALTER TABLE `m_appuser` DISABLE KEYS */;
-INSERT INTO `m_appuser` VALUES (1,0,1,'mifos','App','Administrator','5787039480429368bf94732aacc771cd0a3ea02bcf504ffe1185ab94213bc63a','demomfi@mifos.org','\0','','','','');
+INSERT INTO `m_appuser` VALUES (1,0,1,'mifos','App','Administrator','0000000000000000000000000000000000000000000000000000000000000000','demomfi@mifos.org','\0','','','','');
 /*!40000 ALTER TABLE `m_appuser` ENABLE KEYS */;
 UNLOCK TABLES;
 

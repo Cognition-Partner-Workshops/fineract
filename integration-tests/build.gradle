@@ -37,6 +37,20 @@ dependencies {
     driver 'com.mysql:mysql-connector-j'
 }
 
+
+// Database, tenant-master and keystore passwords are never committed: pass -Pfineract.db.password / -Pfineract.master.password /
+// -Pfineract.ssl.keystore.password or export FINERACT_DB_PASSWORD / FINERACT_MASTER_PASSWORD / FINERACT_SSL_KEY_STORE_PASSWORD first.
+def dbPassword = project.findProperty('fineract.db.password') ?: System.getenv('FINERACT_DB_PASSWORD') ?: ''
+def keystorePassword = project.findProperty('fineract.ssl.keystore.password') ?: System.getenv('FINERACT_SSL_KEY_STORE_PASSWORD') ?: ''
+def masterPassword = project.findProperty('fineract.master.password') ?: System.getenv('FINERACT_MASTER_PASSWORD') ?: ''
+tasks.matching { it.name.startsWith('cargo') }.configureEach {
+    doFirst {
+        if (!dbPassword || !keystorePassword || !masterPassword) {
+            throw new GradleException('FINERACT_DB_PASSWORD, FINERACT_MASTER_PASSWORD and FINERACT_SSL_KEY_STORE_PASSWORD (or -Pfineract.db.password / -Pfineract.master.password / -Pfineract.ssl.keystore.password) must be set to run the integration tests')
+        }
+    }
+}
+
 cargo {
     containerId "tomcat10x"
 
@@ -63,19 +77,20 @@ cargo {
             }
             if (project.hasProperty('dbType')) {
                 if ('postgresql'.equalsIgnoreCase(dbType)) {
-                    jvmArgs += '-Dspring.datasource.hikari.driverClassName=org.postgresql.Driver -Dspring.datasource.hikari.jdbcUrl=jdbc:postgresql://localhost:5432/fineract_tenants -Dspring.datasource.hikari.username=root -Dspring.datasource.hikari.password=postgres -Dfineract.tenant.host=localhost -Dfineract.tenant.port=5432 -Dfineract.tenant.username=root -Dfineract.tenant.password=postgres'
+                    jvmArgs += '-Dspring.datasource.hikari.driverClassName=org.postgresql.Driver -Dspring.datasource.hikari.jdbcUrl=jdbc:postgresql://localhost:5432/fineract_tenants -Dspring.datasource.hikari.username=root -Dspring.datasource.hikari.password=' + dbPassword + ' -Dfineract.tenant.host=localhost -Dfineract.tenant.port=5432 -Dfineract.tenant.username=root -Dfineract.tenant.password=' + dbPassword + ''
                 } else if ('mysql'.equalsIgnoreCase(dbType)) {
-                    jvmArgs += '-Dspring.datasource.hikari.driverClassName=com.mysql.cj.jdbc.Driver -Dspring.datasource.hikari.jdbcUrl=jdbc:mysql://localhost:3306/fineract_tenants -Dspring.datasource.hikari.username=root -Dspring.datasource.hikari.password=mysql -Dfineract.tenant.host=localhost -Dfineract.tenant.port=3306 -Dfineract.tenant.username=root -Dfineract.tenant.password=mysql'
+                    jvmArgs += '-Dspring.datasource.hikari.driverClassName=com.mysql.cj.jdbc.Driver -Dspring.datasource.hikari.jdbcUrl=jdbc:mysql://localhost:3306/fineract_tenants -Dspring.datasource.hikari.username=root -Dspring.datasource.hikari.password=' + dbPassword + ' -Dfineract.tenant.host=localhost -Dfineract.tenant.port=3306 -Dfineract.tenant.username=root -Dfineract.tenant.password=' + dbPassword + ''
                 } else {
                     throw new GradleException('Provided dbType is not supported')
                 }
             } else {
-                jvmArgs += '-Dspring.datasource.hikari.driverClassName=org.mariadb.jdbc.Driver -Dspring.datasource.hikari.jdbcUrl=jdbc:mariadb://localhost:3306/fineract_tenants -Dspring.datasource.hikari.username=root -Dspring.datasource.hikari.password=mysql -Dfineract.tenant.host=localhost -Dfineract.tenant.port=3306 -Dfineract.tenant.username=root -Dfineract.tenant.password=mysql'
+                jvmArgs += '-Dspring.datasource.hikari.driverClassName=org.mariadb.jdbc.Driver -Dspring.datasource.hikari.jdbcUrl=jdbc:mariadb://localhost:3306/fineract_tenants -Dspring.datasource.hikari.username=root -Dspring.datasource.hikari.password=' + dbPassword + ' -Dfineract.tenant.host=localhost -Dfineract.tenant.port=3306 -Dfineract.tenant.username=root -Dfineract.tenant.password=' + dbPassword + ''
             }
+            jvmArgs += ' -Dfineract.tenant.master-password=' + masterPassword + ' -Dfineract.database.defaultMasterPassword=' + masterPassword
             jvmArgs += ' -Dspring.profiles.active=test -Dfineract.events.external.enabled=true'
             property 'cargo.start.jvmargs', jvmArgs
             property 'cargo.tomcat.connector.keystoreFile', file("$rootDir/fineract-provider/src/main/resources/keystore.jks")
-            property 'cargo.tomcat.connector.keystorePass', 'openmf'
+            property 'cargo.tomcat.connector.keystorePass', keystorePassword
             property 'cargo.tomcat.connector.keystoreType', 'JKS'
             property 'cargo.tomcat.httpSecure', true
             property 'cargo.tomcat.connector.sslProtocol', 'TLS'

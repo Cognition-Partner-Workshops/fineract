@@ -100,7 +100,7 @@ This does not require an external Tomcat.
 
 The tenants database connection details are configured [via environment variables (as with Docker container)](#instructions-to-run-using-docker-or-podman), e.g. like this:
 ```bash
-export FINERACT_HIKARI_PASSWORD=verysecret
+export FINERACT_HIKARI_PASSWORD=...   # no default: the server refuses to start without the database, master and keystore passwords (see .env.example)
 ...
 java -jar fineract-provider.jar
 ```
@@ -291,7 +291,9 @@ DATABASE AND TABLES
 
 You can run the required version of the database server in a container, instead of having to install it, like this:
 
-    docker run --name mariadb-11.5 -p 3306:3306 -e MARIADB_ROOT_PASSWORD=mysql -d mariadb:11.5.2
+    docker run --name mariadb-11.5 -p 3306:3306 -e MARIADB_ROOT_PASSWORD="$FINERACT_DB_PASSWORD" -d mariadb:11.5.2
+
+(`FINERACT_DB_PASSWORD` is the same value the application reads through `FINERACT_HIKARI_PASSWORD` / `FINERACT_DEFAULT_TENANTDB_PWD`; see `.env.example`.)
 
 and stop and destroy it like this:
 

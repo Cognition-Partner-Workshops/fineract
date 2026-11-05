@@ -50,17 +50,17 @@ E2E tests connect to the running Fineract instance. Default configuration in `fi
 # Connection details to running backend
 fineract-test.api.base-url=${BASE_URL:https://localhost:8443}
 fineract-test.api.username=${TEST_USERNAME:mifos}
-fineract-test.api.password=${TEST_PASSWORD:password}
+fineract-test.api.password=${TEST_PASSWORD}
 fineract-test.api.tenant-id=${TEST_TENANT_ID:default}
 ----
 
-To override defaults, use environment variables:
+`TEST_PASSWORD` has no default and must always be provided; override the others with environment variables:
 
 [source,bash]
 ----
 export BASE_URL=http://localhost:8080
 export TEST_USERNAME=mifos
-export TEST_PASSWORD=password
+export TEST_PASSWORD=<admin password of the backend under test>
 export TEST_TENANT_ID=default
 ----
 
@@ -484,7 +484,7 @@ INITIALIZATION_ENABLED=true ../gradlew cucumber
 [source,bash]
 ----
 # Verify credentials
-TEST_USERNAME=mifos TEST_PASSWORD=password ../gradlew cucumber
+TEST_USERNAME=mifos TEST_PASSWORD=<admin password> ../gradlew cucumber
 
 # Check user permissions in database
 mysql -u root -pmysql fineract_default -e \

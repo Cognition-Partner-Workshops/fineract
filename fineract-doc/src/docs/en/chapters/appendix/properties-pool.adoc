@@ -21,7 +21,7 @@
 
 |spring.datasource.hikari.password
 |FINERACT_HIKARI_PASSWORD
-|mysql
+|_none, required_
 |The password for the database with tenant information that will be used with fineract
 
 |spring.datasource.hikari.minimumIdle
