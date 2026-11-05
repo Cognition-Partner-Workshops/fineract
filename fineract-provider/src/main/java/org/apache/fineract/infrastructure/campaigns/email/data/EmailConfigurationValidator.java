@@ -27,8 +27,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.campaigns.email.EmailApiConstants;
 import org.apache.fineract.infrastructure.core.data.ApiParameterError;
@@ -36,6 +34,7 @@ import org.apache.fineract.infrastructure.core.data.DataValidatorBuilder;
 import org.apache.fineract.infrastructure.core.exception.InvalidJsonException;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
+import org.apache.fineract.infrastructure.core.validator.EmailAddressValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -43,9 +42,6 @@ import org.springframework.stereotype.Component;
 public final class EmailConfigurationValidator {
 
     private final FromJsonHelper fromApiJsonHelper;
-
-    private static final String EMAIL_REGEX = "^[\\w!#$%&’*+/=?`{|}~^-]+(?:\\.[\\w!#$%&’*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
-    private static final Pattern EMAIL_PATTERN = Pattern.compile(EMAIL_REGEX);
 
     public static final Set<String> supportedParams = new HashSet<String>(Arrays.asList(EmailApiConstants.SMTP_PORT,
             EmailApiConstants.SMTP_PASSWORD, EmailApiConstants.SMTP_USERNAME, EmailApiConstants.SMTP_SERVER));
@@ -93,15 +89,6 @@ public final class EmailConfigurationValidator {
     }
 
     public boolean isValidEmail(String email) {
-        // this is the easiest check
-        if (email == null || email.endsWith(".")) {
-            return false;
-        }
-
-        // Check the whole email address structure
-        Matcher emailMatcher = EMAIL_PATTERN.matcher(email);
-
-        // check if the Matcher matches the email pattern
-        return emailMatcher.matches();
+        return EmailAddressValidator.isValid(email);
     }
 }

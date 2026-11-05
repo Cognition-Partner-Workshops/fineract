@@ -85,6 +85,7 @@ spec:
         app: fineract-server
         tier: fineractmysql
     spec:
+      automountServiceAccountToken: false
       containers:
         - image: mariadb:11.4
           name: mysql
@@ -92,9 +93,11 @@ spec:
             requests:
               memory: "1Gi"
               cpu: "1000m"
+              ephemeral-storage: "512Mi"
             limits:
               memory: "5Gi"
               cpu: "2000m"
+              ephemeral-storage: "2Gi"
           env:
             - name: MARIADB_ROOT_PASSWORD
               valueFrom:

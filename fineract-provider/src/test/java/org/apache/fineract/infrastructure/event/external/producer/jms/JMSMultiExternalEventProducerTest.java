@@ -18,8 +18,14 @@
  */
 package org.apache.fineract.infrastructure.event.external.producer.jms;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import jakarta.jms.BytesMessage;
 import jakarta.jms.Connection;
@@ -33,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.Future;
 import org.apache.fineract.avro.MessageV1;
 import org.apache.fineract.infrastructure.core.config.FineractProperties;
 import org.apache.fineract.infrastructure.core.messaging.jms.MessageFactory;
@@ -48,6 +55,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -180,4 +188,23 @@ class JMSMultiExternalEventProducerTest {
         return messageV1.toByteBuffer().array();
     }
 
+    @AfterEach
+    void clearInterrupt() {
+        Thread.interrupted();
+    }
+
+    @Test
+    void restoresInterruptFlag() throws Exception {
+        Future<Void> future = mock(Future.class);
+        InterruptedException interruption = new InterruptedException("interrupted");
+        when(future.get()).thenThrow(interruption);
+        JMSMultiExternalEventProducer service = mock(JMSMultiExternalEventProducer.class, CALLS_REAL_METHODS);
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> ReflectionTestUtils.invokeMethod(service, "waitForSendingCompletion", List.of(future)));
+        assertSame(interruption, exception.getCause());
+        assertTrue(Thread.interrupted());
+        session1.close();
+        session2.close();
+        session3.close();
+    }
 }

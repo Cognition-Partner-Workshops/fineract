@@ -18,7 +18,12 @@
  */
 package org.apache.fineract.portfolio.loanaccount.service;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -27,13 +32,27 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import org.apache.fineract.accounting.journalentry.service.JournalEntryWritePlatformService;
+import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
+import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
+import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.jobs.exception.JobExecutionException;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
+import org.apache.fineract.portfolio.loanaccount.domain.LoanRepositoryWrapper;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanStatus;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanTransactionRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -43,6 +62,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -99,5 +120,78 @@ public class LoanAccrualsProcessingServiceImplTest {
         return Stream.of(Arguments.of(true, false), // Loan is closed
                 Arguments.of(false, true) // Loan is overpaid
         );
+    }
+
+    @Test
+    void waitsForInFlightWorkBeforeRestoringInterruptFlag() throws Exception {
+        CountDownLatch waiting = new CountDownLatch(1);
+        CompletableFuture<Void> first = new CompletableFuture<>();
+        CompletableFuture<Void> second = new CompletableFuture<>();
+        Future<?> interruptedFuture = mock(Future.class);
+        java.util.concurrent.atomic.AtomicReference<Thread> coordinatorThread = new java.util.concurrent.atomic.AtomicReference<>();
+        when(interruptedFuture.get()).thenAnswer(invocation -> {
+            coordinatorThread.set(Thread.currentThread());
+            waiting.countDown();
+            return first.get();
+        });
+        ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
+        when(executor.submit(any(Runnable.class))).thenReturn((Future) interruptedFuture, (Future) second);
+        LoanAccrualsProcessingServiceImpl service = mock(LoanAccrualsProcessingServiceImpl.class, CALLS_REAL_METHODS);
+        LoanRepositoryWrapper repository = mock(LoanRepositoryWrapper.class);
+        when(repository.findLoansForAddAccrual(any(), any(), anyBoolean())).thenReturn(List.of(mock(Loan.class), mock(Loan.class)));
+        ReflectionTestUtils.setField(service, "loanRepositoryWrapper", repository);
+        ReflectionTestUtils.setField(service, "configurationDomainService", mock(ConfigurationDomainService.class));
+        ReflectionTestUtils.setField(service, "taskExecutor", executor);
+        AtomicBoolean restored = new AtomicBoolean();
+        CompletableFuture<Void> coordinator = CompletableFuture.runAsync(() -> {
+            ThreadLocalContextUtil.setBusinessDates(new HashMap<>(Map.of(BusinessDateType.BUSINESS_DATE, LocalDate.of(2026, 1, 1))));
+            try {
+                assertThrows(JobExecutionException.class, () -> service.addAccruals(LocalDate.of(2026, 1, 1)));
+                restored.set(Thread.currentThread().isInterrupted());
+            } finally {
+                Thread.interrupted();
+                ThreadLocalContextUtil.reset();
+            }
+        });
+        try {
+            assertTrue(waiting.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            coordinatorThread.get().interrupt();
+            org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.TimeoutException.class,
+                    () -> coordinator.get(200, java.util.concurrent.TimeUnit.MILLISECONDS));
+            first.complete(null);
+            org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.TimeoutException.class,
+                    () -> coordinator.get(200, java.util.concurrent.TimeUnit.MILLISECONDS));
+        } finally {
+            first.complete(null);
+            second.complete(null);
+        }
+        coordinator.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertTrue(restored.get());
+        verify(executor, times(2)).submit(any(Runnable.class));
+    }
+
+    @AfterEach
+    void clearInterrupt() {
+        Thread.interrupted();
+    }
+
+    @Test
+    void restoresInterruptFlag() throws Exception {
+        ThreadLocalContextUtil.setBusinessDates(new HashMap<>(Map.of(BusinessDateType.BUSINESS_DATE, LocalDate.of(2026, 1, 1))));
+        Future<?> future = mock(Future.class);
+        InterruptedException interruption = new InterruptedException("interrupted");
+        when(future.get()).thenThrow(interruption).thenReturn(null);
+        LoanAccrualsProcessingServiceImpl service = mock(LoanAccrualsProcessingServiceImpl.class, CALLS_REAL_METHODS);
+        LoanRepositoryWrapper repository = mock(LoanRepositoryWrapper.class);
+        ConfigurationDomainService configuration = mock(ConfigurationDomainService.class);
+        when(repository.findLoansForAddAccrual(any(), any(), anyBoolean())).thenReturn(List.of(mock(Loan.class)));
+        ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
+        when(executor.submit(any(Runnable.class))).thenReturn((Future) future);
+        ReflectionTestUtils.setField(service, "loanRepositoryWrapper", repository);
+        ReflectionTestUtils.setField(service, "configurationDomainService", configuration);
+        ReflectionTestUtils.setField(service, "taskExecutor", executor);
+        assertThrows(JobExecutionException.class, () -> service.addAccruals(LocalDate.of(2026, 1, 1)));
+        assertTrue(Thread.interrupted());
+        ThreadLocalContextUtil.reset();
     }
 }

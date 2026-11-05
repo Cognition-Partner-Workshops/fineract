@@ -163,7 +163,10 @@ public class LoanAccrualsProcessingServiceImpl implements LoanAccrualsProcessing
 
         FineractContext context = ThreadLocalContextUtil.getContext();
 
-        loans.forEach(outerLoan -> {
+        for (Loan outerLoan : loans) {
+            if (Thread.currentThread().isInterrupted()) {
+                break;
+            }
             loanTasks.add(taskExecutor.submit(() -> {
                 try {
                     ThreadLocalContextUtil.init(context);
@@ -182,15 +185,30 @@ public class LoanAccrualsProcessingServiceImpl implements LoanAccrualsProcessing
                     ThreadLocalContextUtil.reset();
                 }
             }));
-        });
+        }
 
         List<Throwable> errors = new ArrayList<>();
+        boolean interrupted = Thread.interrupted();
+        if (interrupted) {
+            errors.add(new InterruptedException("Interrupted while submitting accruals"));
+        }
         for (Future<?> task : loanTasks) {
-            try {
-                task.get();
-            } catch (Exception e) {
-                errors.add(e);
+            boolean completed = false;
+            while (!completed) {
+                try {
+                    task.get();
+                    completed = true;
+                } catch (InterruptedException e) {
+                    interrupted = true;
+                    errors.add(e);
+                } catch (Exception e) {
+                    errors.add(e);
+                    completed = true;
+                }
             }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
         }
         if (!errors.isEmpty()) {
             throw new JobExecutionException(errors);

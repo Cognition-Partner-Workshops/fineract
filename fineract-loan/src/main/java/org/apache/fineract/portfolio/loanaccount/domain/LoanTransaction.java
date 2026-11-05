@@ -767,14 +767,8 @@ public class LoanTransaction extends AbstractAuditableWithUTCDateTimeCustom<Long
     }
 
     public boolean isPenaltyPayment() {
-        boolean isPenalty = false;
-        if (isChargePayment()) {
-            for (final LoanChargePaidBy chargePaidBy : this.loanChargesPaid) {
-                isPenalty = chargePaidBy.getLoanCharge().isPenaltyCharge();
-                break;
-            }
-        }
-        return isPenalty;
+        return isChargePayment() && this.loanChargesPaid.stream().findFirst()
+                .map(chargePaidBy -> chargePaidBy.getLoanCharge().isPenaltyCharge()).orElse(false);
     }
 
     public boolean isWriteOff() {

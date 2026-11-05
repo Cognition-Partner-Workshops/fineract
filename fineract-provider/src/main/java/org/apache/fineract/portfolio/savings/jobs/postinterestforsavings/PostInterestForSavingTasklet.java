@@ -200,6 +200,7 @@ public class PostInterestForSavingTasklet implements Tasklet {
                 log.error("All threads could not execute.");
             }
         } catch (InterruptedException e1) {
+            Thread.currentThread().interrupt();
             log.error("Interrupted while interest posting entries", e1);
         } catch (ExecutionException e2) {
             log.error("Execution exception while interest posting entries", e2);

@@ -703,6 +703,9 @@ configure(project.fineractJavaProjects) {
 
     test {
         useJUnitPlatform()
+        if (project.name in ['fineract-core', 'fineract-provider']) {
+            jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+        }
 
         if (project.hasProperty('excludeTests')) {
             filter {
