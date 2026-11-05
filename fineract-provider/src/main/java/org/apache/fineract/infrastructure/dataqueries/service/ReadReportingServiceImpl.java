@@ -297,12 +297,7 @@ public class ReadReportingServiceImpl implements ReadReportingService {
 
     @Override
     public ReportData retrieveReport(final Long id) {
-        final Collection<ReportData> reports = retrieveReports(id);
-
-        for (final ReportData report : reports) {
-            return report;
-        }
-        return null;
+        return retrieveReports(id).stream().findFirst().orElse(null);
     }
 
     @Override
