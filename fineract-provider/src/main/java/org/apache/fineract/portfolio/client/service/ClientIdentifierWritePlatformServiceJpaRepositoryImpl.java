@@ -20,7 +20,6 @@ package org.apache.fineract.portfolio.client.service;
 
 import jakarta.persistence.PersistenceException;
 import java.util.Map;
-import java.util.Set;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.fineract.infrastructure.codes.domain.CodeValue;
 import org.apache.fineract.infrastructure.codes.domain.CodeValueRepositoryWrapper;
@@ -29,10 +28,7 @@ import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
-import org.apache.fineract.infrastructure.documentmanagement.command.DocumentCommand;
-import org.apache.fineract.infrastructure.documentmanagement.domain.Document;
 import org.apache.fineract.infrastructure.documentmanagement.retention.IdentityDocumentRetentionPolicy;
-import org.apache.fineract.infrastructure.documentmanagement.service.DocumentWritePlatformService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.client.command.ClientIdentifierCommand;
 import org.apache.fineract.portfolio.client.domain.Client;
@@ -61,21 +57,19 @@ public class ClientIdentifierWritePlatformServiceJpaRepositoryImpl implements Cl
     private final CodeValueRepositoryWrapper codeValueRepository;
     private final ClientIdentifierCommandFromApiJsonDeserializer clientIdentifierCommandFromApiJsonDeserializer;
     private final IdentityDocumentRetentionPolicy retentionPolicy;
-    private final DocumentWritePlatformService documentWrites;
 
     @Autowired
     public ClientIdentifierWritePlatformServiceJpaRepositoryImpl(final PlatformSecurityContext context,
             final ClientRepositoryWrapper clientRepository, final ClientIdentifierRepository clientIdentifierRepository,
             final CodeValueRepositoryWrapper codeValueRepository,
             final ClientIdentifierCommandFromApiJsonDeserializer clientIdentifierCommandFromApiJsonDeserializer,
-            final IdentityDocumentRetentionPolicy retentionPolicy, final DocumentWritePlatformService documentWrites) {
+            final IdentityDocumentRetentionPolicy retentionPolicy) {
         this.context = context;
         this.clientRepository = clientRepository;
         this.clientIdentifierRepository = clientIdentifierRepository;
         this.codeValueRepository = codeValueRepository;
         this.clientIdentifierCommandFromApiJsonDeserializer = clientIdentifierCommandFromApiJsonDeserializer;
         this.retentionPolicy = retentionPolicy;
-        this.documentWrites = documentWrites;
     }
 
     @Transactional
@@ -190,10 +184,7 @@ public class ClientIdentifierWritePlatformServiceJpaRepositoryImpl implements Cl
 
         final ClientIdentifier clientIdentifier = this.clientIdentifierRepository.findById(identifierId)
                 .orElseThrow(() -> new ClientIdentifierNotFoundException(identifierId));
-        for (Document document : retentionPolicy.documentsForIdentifierDeletion(clientIdentifier)) {
-            documentWrites.deleteDocument(new DocumentCommand(Set.of(), document.getId(), document.getParentEntityType(),
-                    document.getParentEntityId(), null, null, null, null, null, null));
-        }
+        retentionPolicy.validateIdentifierDeletion(clientIdentifier);
         this.clientIdentifierRepository.delete(clientIdentifier);
 
         return new CommandProcessingResultBuilder() //

@@ -18,7 +18,6 @@
  */
 package org.apache.fineract.infrastructure.documentmanagement.retention;
 
-import java.util.List;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.documentmanagement.domain.Document;
@@ -51,14 +50,13 @@ public class IdentityDocumentRetentionPolicy {
         validateClient(identifier.client());
     }
 
-    public List<Document> documentsForIdentifierDeletion(ClientIdentifier identifier) {
-        List<Document> attachments = documents.findAll((root, query, builder) -> builder.and(
+    public void validateIdentifierDeletion(ClientIdentifier identifier) {
+        long count = documents.count((root, query, builder) -> builder.and(
                 builder.equal(builder.lower(root.<String>get("parentEntityType")), "client_identifiers"),
                 builder.equal(root.get("parentEntityId"), identifier.getId())));
-        if (!attachments.isEmpty()) {
+        if (count > 0) {
             validateClient(identifier.client());
         }
-        return attachments;
     }
 
     private void validateClient(Client client) {
