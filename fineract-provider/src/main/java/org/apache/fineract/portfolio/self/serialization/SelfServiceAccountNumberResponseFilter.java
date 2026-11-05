@@ -59,17 +59,17 @@ public class SelfServiceAccountNumberResponseFilter implements ContainerResponse
             return;
         }
         MediaType media = response.getMediaType();
-        if (!response.hasEntity() || media == null
-                || !(media.isCompatible(MediaType.APPLICATION_JSON_TYPE) || media.getSubtype().endsWith("+json"))) {
+        if (!response.hasEntity() || media == null || !media.getType().equalsIgnoreCase("application")
+                || !(media.getSubtype().equalsIgnoreCase("json") || media.getSubtype().toLowerCase(Locale.ROOT).endsWith("+json"))) {
             return;
         }
         Object entity = response.getEntity();
-        if (entity instanceof String text && text.isBlank()) {
-            return;
-        }
         JsonNode json;
         try {
             json = entity instanceof String text ? mapper.readTree(text) : mapper.valueToTree(entity);
+            if (json == null || json.isMissingNode()) {
+                throw new IllegalArgumentException("Empty JSON response");
+            }
         } catch (JsonProcessingException | IllegalArgumentException exception) {
             response.setStatus(500);
             response.setEntity("{\"message\":\"Cannot safely serialize self-service response\"}");

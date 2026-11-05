@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerResponseContext;
 import jakarta.ws.rs.container.ContainerResponseFilter;
@@ -43,6 +44,10 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSerializer;
+import org.apache.fineract.infrastructure.core.serialization.ExcludeNothingWithPrettyPrintingOffJsonSerializerGoogleGson;
+import org.apache.fineract.portfolio.self.registration.api.SelfServiceRegistrationApiResource;
+import org.apache.fineract.portfolio.self.registration.service.SelfServiceRegistrationWritePlatformService;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
@@ -57,6 +62,10 @@ class SelfServiceAccountDisclosureTest {
     }
 
     private String response(String path, String json, int initialStatus, int expectedStatus) throws Exception {
+        return response(path, json, initialStatus, expectedStatus, MediaType.APPLICATION_JSON_TYPE);
+    }
+
+    private String response(String path, String json, int initialStatus, int expectedStatus, MediaType media) throws Exception {
         AtomicReference<Object> entity = new AtomicReference<>(json);
         AtomicInteger status = new AtomicInteger(initialStatus);
         ContainerRequestContext request = mock(ContainerRequestContext.class);
@@ -74,7 +83,7 @@ class SelfServiceAccountDisclosureTest {
         }).when(response).setStatus(anyInt());
         when(response.hasEntity()).thenReturn(true);
         when(response.getEntity()).thenAnswer(i -> entity.get());
-        when(response.getMediaType()).thenReturn(MediaType.APPLICATION_JSON_TYPE);
+        when(response.getMediaType()).thenReturn(media);
         when(response.getHeaders()).thenReturn(new MultivaluedHashMap<>());
         doAnswer(i -> {
             entity.set(i.getArgument(0));
@@ -164,5 +173,34 @@ class SelfServiceAccountDisclosureTest {
         }
         assertEquals(body, response("v1/savingsaccounts", body, 400, 400));
         assertEquals(body, response("v1/self/loans", body));
+    }
+
+    @Test
+    void nonJsonBodiesPassThroughIncludingWildcardMediaTypes() throws Exception {
+        for (MediaType media : new MediaType[] { MediaType.TEXT_PLAIN_TYPE, MediaType.TEXT_HTML_TYPE,
+                MediaType.APPLICATION_OCTET_STREAM_TYPE, MediaType.WILDCARD_TYPE, new MediaType("application", "*") }) {
+            assertEquals("Registration accepted", response("v1/self/registration", "Registration accepted", 200, 200, media));
+        }
+    }
+
+    @Test
+    void blankAndMalformedJsonTypedBodiesStillFailClosed() throws Exception {
+        for (String body : new String[] { "", " ", "invalid JSON" }) {
+            assertTrue(response("v1/self/registration", body, 200, 500, new MediaType("application", "problem+json"))
+                    .contains("Cannot safely serialize self-service response"));
+        }
+    }
+
+    @Test
+    void registrationSuccessHonoursItsDeclaredJsonMediaType() throws Exception {
+        var serializer = new DefaultToApiJsonSerializer<org.apache.fineract.useradministration.domain.AppUser>(
+                new ExcludeNothingWithPrettyPrintingOffJsonSerializerGoogleGson(), null, null);
+        var resource = new SelfServiceRegistrationApiResource(mock(SelfServiceRegistrationWritePlatformService.class), serializer);
+        String body = resource.createSelfServiceRegistrationRequest("{}");
+        String media = SelfServiceRegistrationApiResource.class.getMethod("createSelfServiceRegistrationRequest", String.class)
+                .getAnnotation(Produces.class).value()[0];
+        String output = response("v1/self/registration", body, 200, 200, MediaType.valueOf(media));
+        assertEquals(org.apache.fineract.portfolio.self.registration.SelfServiceApiConstants.createRequestSuccessMessage,
+                new ObjectMapper().readTree(output).asText());
     }
 }
