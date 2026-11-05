@@ -177,17 +177,25 @@ class SavingsAccountTest {
     void backdatedDepositCorrectsInterestByReversingOldPosting() {
         SavingsAccount account = active("3.65", "0");
         account.addTransaction(SavingsAccountTransaction.deposit(account, account.office(), null, ACTIVATED, money("1000"), null));
+        SavingsAccountTransaction withdrawal = SavingsAccountTransaction.withdrawal(account, account.office(), null,
+                LocalDate.of(2024, 2, 15), money("100"), null);
+        account.addTransaction(withdrawal);
         postInterest(account, false);
         SavingsAccountTransaction originalPosting = account.getTransactions().stream()
                 .filter(SavingsAccountTransaction::isInterestPostingAndNotReversed).findFirst().orElseThrow();
-        account.addTransaction(SavingsAccountTransaction.deposit(account, account.office(), null, ACTIVATED, money("1000"), null));
+        assertAmount("2.75", originalPosting.getAmount());
+        SavingsAccountTransaction backdatedDeposit = SavingsAccountTransaction.deposit(account, account.office(), null,
+                LocalDate.of(2024, 2, 10), money("1000"), null);
+        account.addTransaction(backdatedDeposit);
         postInterest(account, true);
         assertTrue(originalPosting.isReversed());
         assertEquals(1, account.getTransactions().stream().filter(SavingsAccountTransaction::isReversalTransaction).count());
         assertEquals(1, account.getTransactions().stream().filter(SavingsAccountTransaction::isInterestPostingAndNotReversed)
                 .filter(transaction -> !transaction.isReversalTransaction()).count());
-        assertAmount("5.80", account.summary.getTotalInterestPosted());
-        assertAmount("2005.80", account.getAccountBalance());
+        assertAmount("2000", backdatedDeposit.getRunningBalance());
+        assertAmount("1900", withdrawal.getRunningBalance());
+        assertAmount("4.75", account.summary.getTotalInterestPosted());
+        assertAmount("1904.75", account.getAccountBalance());
     }
 
     @Test
