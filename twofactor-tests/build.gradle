@@ -38,7 +38,7 @@ dependencies {
 }
 
 cargo {
-    containerId "tomcat10x"
+    containerId "tomcat11x"
 
     // looks like Cargo doesn't detect the WAR file automatically in the multi-module setup
     deployable {

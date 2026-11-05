@@ -85,11 +85,11 @@ buildscript {
     dependencies {
         classpath "org.apache.groovy:groovy-sql:${GroovySystem.version}"
         classpath 'com.bmuschko:gradle-cargo-plugin:2.9.0'
-        classpath 'org.eclipse.persistence:eclipselink:4.0.9'
-        classpath 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
+        classpath 'org.eclipse.persistence:eclipselink:5.0.2'
+        classpath 'jakarta.ws.rs:jakarta.ws.rs-api:4.0.0'
         classpath 'com.google.cloud.tools:jib-layer-filter-extension-gradle:0.3.0'
         classpath 'org.apache.commons:commons-lang3:3.18.0'
-        classpath 'io.swagger.core.v3:swagger-jaxrs2-jakarta:2.2.22'
+        classpath 'io.swagger.core.v3:swagger-jaxrs2-jakarta:2.2.55'
         classpath 'jakarta.servlet:jakarta.servlet-api:6.1.0'
     }
 }
@@ -103,7 +103,7 @@ plugins {
     id 'com.github.hierynomus.license' version '0.16.1' apply false
     id 'com.github.jk1.dependency-license-report' version '3.1.5' apply false
     id 'org.zeroturnaround.gradle.jrebel' version '1.2.3' apply false
-    id 'org.springframework.boot' version '3.5.6' apply false
+    id 'org.springframework.boot' version '4.1.2' apply false
     id 'net.ltgt.errorprone' version '5.2.0' apply false
     id 'io.swagger.core.v3.swagger-gradle-plugin' version '2.2.23' apply false
     id 'com.gorylenko.gradle-git-properties' version '4.0.1' apply false
@@ -148,7 +148,6 @@ gitVersioning.apply {
     }
 }
 
-ext['groovy.version'] = '5.0.2'
 ext['swaggerFile'] = "$rootDir/fineract-provider/build/resources/main/static/fineract.json".toString()
 
 // Apply static weaving configuration to all subprojects
@@ -798,7 +797,6 @@ configure(project.fineractCustomProjects) {
             exclude group: 'org.skyscreamer'
         }
         testImplementation( 'org.mockito:mockito-core',
-                'org.mockito:mockito-inline',
                 'org.mockito:mockito-junit-jupiter',
                 'org.junit.jupiter:junit-jupiter-api',
                 'org.junit.jupiter:junit-jupiter-engine',
