@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.infrastructure.security.vote;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.function.Supplier;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.security.authorization.AuthorizationDecision;
@@ -32,8 +33,7 @@ public class SelfServiceUserAuthorizationManager implements AuthorizationManager
         if (!"OPTIONS".equalsIgnoreCase(fi.getRequest().getMethod())) {
             AppUser user = (AppUser) authentication.get().getPrincipal();
 
-            String pathURL = fi.getRequest().getRequestURL().toString();
-            boolean isSelfServiceRequest = pathURL.contains("/self/");
+            boolean isSelfServiceRequest = isSelfServiceRequest(fi.getRequest());
 
             boolean notAllowed = ((isSelfServiceRequest && !user.isSelfServiceUser())
                     || (!isSelfServiceRequest && user.isSelfServiceUser()));
@@ -43,6 +43,16 @@ public class SelfServiceUserAuthorizationManager implements AuthorizationManager
             }
         }
         return new AuthorizationDecision(true);
+    }
+
+    public static boolean isSelfServiceRequest(HttpServletRequest request) {
+        String servletPath = request.getServletPath();
+        String path = servletPath == null ? "" : servletPath;
+        String pathInfo = request.getPathInfo();
+        if (pathInfo != null) {
+            path += pathInfo;
+        }
+        return path.contains("/self/");
     }
 
     public static SelfServiceUserAuthorizationManager selfServiceUserAuthManager() {

@@ -228,4 +228,5 @@
     <include file="parts/0207_add_allow_full_term_for_tranche.xml" relativeToChangelogFile="true" />
     <include file="parts/0208_add_upload_creditreport_permission.xml" relativeToChangelogFile="true" />
     <include file="parts/0209_add_approval_claim_token.xml" relativeToChangelogFile="true" />
+    <include file="parts/0210_self_service_registration_token_hardening.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
