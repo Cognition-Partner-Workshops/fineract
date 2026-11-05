@@ -47,8 +47,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
 import org.apache.fineract.infrastructure.core.domain.ActionContext;
+import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
@@ -81,6 +83,7 @@ import org.apache.fineract.portfolio.loanproduct.calc.EMICalculator;
 import org.apache.fineract.portfolio.loanproduct.calc.data.ProgressiveLoanInterestScheduleModel;
 import org.apache.fineract.portfolio.loanproduct.domain.AllocationType;
 import org.apache.fineract.portfolio.loanproduct.domain.CreditAllocationTransactionType;
+import org.apache.fineract.portfolio.loanproduct.domain.FutureInstallmentAllocationRule;
 import org.apache.fineract.portfolio.loanproduct.domain.LoanProductRelatedDetail;
 import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationTransactionType;
 import org.apache.fineract.portfolio.loanproduct.domain.PaymentAllocationType;
@@ -91,6 +94,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -656,6 +663,179 @@ class AdvancedPaymentScheduleTransactionProcessorTest {
         result = underTest.calculateChargebackAllocationMap(allocationMap(40.0, 100.0, 200.0, 12.0, currency), BigDecimal.valueOf(352.0),
                 List.of(PRINCIPAL, FEE, PENALTY, INTEREST), currency);
         verify(allocationMap(40.0, 100.0, 200.0, 12.0, currency), result);
+    }
+
+    static Stream<Arguments> allocationScenarios() {
+        return Stream.of(LoanScheduleProcessingType.HORIZONTAL, LoanScheduleProcessingType.VERTICAL)
+                .flatMap(processing -> Stream.of(FutureInstallmentAllocationRule.values())
+                        .flatMap(future -> Stream.of(-1, 0, 1).map(timing -> Arguments.of(processing, future, timing))));
+    }
+
+    @ParameterizedTest
+    @MethodSource("allocationScenarios")
+    void allocatesPrincipalByTimingAndFutureRule(LoanScheduleProcessingType processing, FutureInstallmentAllocationRule future,
+            int timing) {
+        Loan loan = allocationLoan(processing, future, List.of(PaymentAllocationType.PAST_DUE_PRINCIPAL,
+                PaymentAllocationType.DUE_PRINCIPAL, PaymentAllocationType.IN_ADVANCE_PRINCIPAL));
+        List<LoanRepaymentScheduleInstallment> installments = allocationInstallments(loan, false);
+        LocalDate date = timing < 0 ? LocalDate.of(2023, 4, 1) : timing == 0 ? LocalDate.of(2023, 2, 1) : LocalDate.of(2023, 1, 15);
+        LoanTransaction payment = payment(loan, date, "30.00", false);
+        MoneyHolder overpayment = new MoneyHolder(Money.zero(MONETARY_CURRENCY));
+
+        underTest.processLatestTransaction(payment, new TransactionCtx(MONETARY_CURRENCY, installments, Set.of(), overpayment, null));
+
+        String first = timing <= 0 || future == FutureInstallmentAllocationRule.NEXT_INSTALLMENT
+                || future == FutureInstallmentAllocationRule.NEXT_LAST_INSTALLMENT ? "30.00"
+                        : future == FutureInstallmentAllocationRule.REAMORTIZATION ? "15.00" : "0.00";
+        assertEquals(new BigDecimal(first), installments.getFirst().getPrincipalCompleted(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("30.00").subtract(new BigDecimal(first)),
+                installments.getLast().getPrincipalCompleted(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("30.00"), payment.getPrincipalPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("70.00"), installments.stream().map(i -> i.getPrincipalOutstanding(MONETARY_CURRENCY).getAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        assertTrue(overpayment.getMoneyObject().isZero());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = LoanScheduleProcessingType.class, names = { "HORIZONTAL", "VERTICAL" })
+    void paysAllComponentsAcrossPastDueDueAndFutureAndKeepsOverpayment(LoanScheduleProcessingType processing) {
+        List<PaymentAllocationType> allocations = List.of(PaymentAllocationType.PAST_DUE_PENALTY, PaymentAllocationType.PAST_DUE_FEE,
+                PaymentAllocationType.PAST_DUE_INTEREST, PaymentAllocationType.PAST_DUE_PRINCIPAL, PaymentAllocationType.DUE_PENALTY,
+                PaymentAllocationType.DUE_FEE, PaymentAllocationType.DUE_INTEREST, PaymentAllocationType.DUE_PRINCIPAL,
+                PaymentAllocationType.IN_ADVANCE_PENALTY, PaymentAllocationType.IN_ADVANCE_FEE, PaymentAllocationType.IN_ADVANCE_INTEREST,
+                PaymentAllocationType.IN_ADVANCE_PRINCIPAL);
+        Loan loan = allocationLoan(processing, FutureInstallmentAllocationRule.NEXT_INSTALLMENT, allocations);
+        List<LoanRepaymentScheduleInstallment> installments = allocationInstallments(loan, true);
+        installments.add(
+                new LoanRepaymentScheduleInstallment(loan, 3, LocalDate.of(2023, 3, 1), LocalDate.of(2023, 4, 1), new BigDecimal("50.00"),
+                        new BigDecimal("10.00"), new BigDecimal("2.00"), new BigDecimal("1.00"), false, null, BigDecimal.ZERO));
+        LoanTransaction payment = payment(loan, LocalDate.of(2023, 3, 1), "200.00", false);
+        MoneyHolder overpayment = new MoneyHolder(Money.zero(MONETARY_CURRENCY));
+
+        underTest.processLatestTransaction(payment, new TransactionCtx(MONETARY_CURRENCY, installments, Set.of(), overpayment, null));
+
+        assertEquals(new BigDecimal("150.00"), payment.getPrincipalPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("30.00"), payment.getInterestPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("6.00"), payment.getFeeChargesPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("3.00"), payment.getPenaltyChargesPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("11.00"), overpayment.getMoneyObject().getAmount());
+        assertEquals(new BigDecimal("11.00"), payment.getOverPaymentPortion(MONETARY_CURRENCY).getAmount());
+        installments.forEach(i -> assertTrue(i.getTotalOutstanding(MONETARY_CURRENCY).isZero()));
+    }
+
+    @ParameterizedTest
+    @MethodSource("allocationScenarios")
+    void refundUnpaysPrincipalWithoutChangingContractualPrincipal(LoanScheduleProcessingType processing,
+            FutureInstallmentAllocationRule future, int timing) {
+        Loan loan = allocationLoan(processing, future, List.of(PaymentAllocationType.PAST_DUE_PRINCIPAL,
+                PaymentAllocationType.DUE_PRINCIPAL, PaymentAllocationType.IN_ADVANCE_PRINCIPAL));
+        LoanPaymentAllocationRule defaultRule = loan.getPaymentAllocationRules().getFirst();
+        LoanPaymentAllocationRule refundRule = mock(LoanPaymentAllocationRule.class);
+        when(refundRule.getTransactionType()).thenReturn(PaymentAllocationTransactionType.REFUND_FOR_ACTIVE_LOAN);
+        List<PaymentAllocationType> refundAllocations = defaultRule.getAllocationTypes();
+        when(refundRule.getAllocationTypes()).thenReturn(refundAllocations);
+        when(refundRule.getFutureInstallmentAllocationRule()).thenReturn(future);
+        when(loan.getPaymentAllocationRules()).thenReturn(List.of(defaultRule, refundRule));
+        List<LoanRepaymentScheduleInstallment> installments = allocationInstallments(loan, false);
+        installments.forEach(i -> i.payPrincipalComponent(LocalDate.of(2023, 1, 10), Money.of(MONETARY_CURRENCY, new BigDecimal("50.00"))));
+        LocalDate date = timing < 0 ? LocalDate.of(2023, 4, 1) : timing == 0 ? LocalDate.of(2023, 2, 1) : LocalDate.of(2023, 1, 15);
+        LoanTransaction refund = payment(loan, date, "30.00", true);
+
+        underTest.processLatestTransaction(refund,
+                new TransactionCtx(MONETARY_CURRENCY, installments, Set.of(), new MoneyHolder(Money.zero(MONETARY_CURRENCY)), null));
+
+        assertEquals(new BigDecimal("30.00"), refund.getPrincipalPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("30.00"), installments.stream().map(i -> i.getPrincipalOutstanding(MONETARY_CURRENCY).getAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        assertEquals(new BigDecimal("100.00"),
+                installments.stream().map(i -> i.getPrincipal(MONETARY_CURRENCY).getAmount()).reduce(BigDecimal.ZERO, BigDecimal::add));
+        String first = timing == 0 || timing > 0 && (future == FutureInstallmentAllocationRule.NEXT_INSTALLMENT
+                || future == FutureInstallmentAllocationRule.NEXT_LAST_INSTALLMENT) ? "30.00"
+                        : timing > 0 && future == FutureInstallmentAllocationRule.REAMORTIZATION ? "15.00" : "0.00";
+        assertEquals(new BigDecimal(first), installments.getFirst().getPrincipalOutstanding(MONETARY_CURRENCY).getAmount());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = LoanScheduleProcessingType.class, names = { "HORIZONTAL", "VERTICAL" })
+    void partialPaymentDistinguishesInstallmentFirstFromComponentFirstAllocation(LoanScheduleProcessingType processing) {
+        Loan loan = allocationLoan(processing, FutureInstallmentAllocationRule.NEXT_INSTALLMENT,
+                List.of(PaymentAllocationType.PAST_DUE_PENALTY, PaymentAllocationType.PAST_DUE_FEE, PaymentAllocationType.PAST_DUE_INTEREST,
+                        PaymentAllocationType.PAST_DUE_PRINCIPAL));
+        List<LoanRepaymentScheduleInstallment> installments = allocationInstallments(loan, true);
+        LoanTransaction payment = payment(loan, LocalDate.of(2023, 4, 1), "30.00", false);
+
+        underTest.processLatestTransaction(payment,
+                new TransactionCtx(MONETARY_CURRENCY, installments, Set.of(), new MoneyHolder(Money.zero(MONETARY_CURRENCY)), null));
+
+        boolean horizontal = processing == LoanScheduleProcessingType.HORIZONTAL;
+        assertEquals(new BigDecimal(horizontal ? "17.00" : "4.00"), payment.getPrincipalPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal(horizontal ? "10.00" : "20.00"), payment.getInterestPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal(horizontal ? "2.00" : "4.00"), payment.getFeeChargesPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal(horizontal ? "1.00" : "2.00"), payment.getPenaltyChargesPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal(horizontal ? "30.00" : "17.00"), installments.getFirst().getTotalPaid(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal(horizontal ? "0.00" : "13.00"), installments.getLast().getTotalPaid(MONETARY_CURRENCY).getAmount());
+    }
+
+    @Test
+    void zeroPaymentWithEmptyScheduleHasNoAllocatedOrOverpaidAmount() {
+        Loan loan = allocationLoan(LoanScheduleProcessingType.HORIZONTAL, FutureInstallmentAllocationRule.NEXT_INSTALLMENT,
+                List.of(PaymentAllocationType.DUE_PRINCIPAL));
+        LoanTransaction payment = payment(loan, transactionDate, "0.00", false);
+        MoneyHolder overpayment = new MoneyHolder(Money.zero(MONETARY_CURRENCY));
+        underTest.processLatestTransaction(payment, new TransactionCtx(MONETARY_CURRENCY, List.of(), Set.of(), overpayment, null));
+        assertTrue(payment.getPrincipalPortion(MONETARY_CURRENCY).isZero());
+        assertTrue(payment.getOverPaymentPortion(MONETARY_CURRENCY).isZero());
+        assertTrue(payment.getLoanTransactionToRepaymentScheduleMappings().isEmpty());
+        assertTrue(overpayment.getMoneyObject().isZero());
+    }
+
+    @Test
+    void writeOffClearsOnlyUnpaidComponents() {
+        Loan loan = mock(Loan.class);
+        List<LoanRepaymentScheduleInstallment> installments = allocationInstallments(loan, true);
+        installments.getFirst().payPrincipalComponent(transactionDate, Money.of(MONETARY_CURRENCY, new BigDecimal("20.00")));
+        LoanTransaction writeoff = LoanTransaction.writeoff(loan, null, transactionDate, ExternalId.empty());
+
+        underTest.processLatestTransaction(writeoff,
+                new TransactionCtx(MONETARY_CURRENCY, installments, Set.of(), new MoneyHolder(Money.zero(MONETARY_CURRENCY)), null));
+
+        assertEquals(new BigDecimal("80.00"), writeoff.getPrincipalPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("20.00"), writeoff.getInterestPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("4.00"), writeoff.getFeeChargesPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("2.00"), writeoff.getPenaltyChargesPortion(MONETARY_CURRENCY).getAmount());
+        assertEquals(new BigDecimal("106.00"), writeoff.getAmount());
+        installments.forEach(i -> assertTrue(i.getTotalOutstanding(MONETARY_CURRENCY).isZero()));
+    }
+
+    private Loan allocationLoan(LoanScheduleProcessingType processing, FutureInstallmentAllocationRule future,
+            List<PaymentAllocationType> allocations) {
+        Loan loan = mock(Loan.class, Mockito.RETURNS_DEEP_STUBS);
+        lenient().when(loan.getCurrency()).thenReturn(MONETARY_CURRENCY);
+        when(loan.getLoanProductRelatedDetail().getLoanScheduleProcessingType()).thenReturn(processing);
+        LoanPaymentAllocationRule rule = mock(LoanPaymentAllocationRule.class);
+        when(rule.getTransactionType()).thenReturn(PaymentAllocationTransactionType.DEFAULT);
+        when(rule.getAllocationTypes()).thenReturn(allocations);
+        lenient().when(rule.getFutureInstallmentAllocationRule()).thenReturn(future);
+        when(loan.getPaymentAllocationRules()).thenReturn(List.of(rule));
+        return loan;
+    }
+
+    private List<LoanRepaymentScheduleInstallment> allocationInstallments(Loan loan, boolean charges) {
+        List<LoanRepaymentScheduleInstallment> installments = new ArrayList<>();
+        for (int i = 1; i <= 2; i++) {
+            installments.add(new LoanRepaymentScheduleInstallment(loan, i, LocalDate.of(2023, i, 1), LocalDate.of(2023, i + 1, 1),
+                    new BigDecimal("50.00"), new BigDecimal(charges ? "10.00" : "0.00"), new BigDecimal(charges ? "2.00" : "0.00"),
+                    new BigDecimal(charges ? "1.00" : "0.00"), false, null, BigDecimal.ZERO));
+        }
+        return installments;
+    }
+
+    private LoanTransaction payment(Loan loan, LocalDate date, String amount, boolean refund) {
+        Money money = Money.of(MONETARY_CURRENCY, new BigDecimal(amount));
+        LoanTransaction transaction = refund ? LoanTransaction.refundForActiveLoan(null, money, null, date, ExternalId.empty())
+                : LoanTransaction.repayment(null, money, null, date, ExternalId.empty());
+        transaction.updateLoan(loan);
+        return transaction;
     }
 
     private void verify(Map<AllocationType, Money> expected, Map<AllocationType, Money> actual) {
