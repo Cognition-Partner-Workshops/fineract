@@ -107,7 +107,7 @@ public final class SavingsAccountSummary {
 
         updateRunningBalanceAndPivotDate(false, transactions, null, null, null, currency);
 
-        this.accountBalance = Money.of(currency, this.totalDeposits).plus(this.totalInterestPosted).minus(this.totalWithdrawals)
+        this.accountBalance = Money.of(currency, this.totalDeposits).plus(this.totalInterestPosted).plus(this.totalWithdrawals)
                 .minus(this.totalWithdrawalFees).minus(this.totalAnnualFees).minus(this.totalFeeCharge).minus(this.totalPenaltyCharge)
                 .minus(totalOverdraftInterestDerived).minus(totalWithholdTax).getAmount();
     }
