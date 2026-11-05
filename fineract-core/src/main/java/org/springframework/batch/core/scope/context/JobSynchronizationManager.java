@@ -53,8 +53,8 @@ public class JobSynchronizationManager {
         Enhancer enhancer = new Enhancer();
         enhancer.setSuperclass(JobExecution.class);
         enhancer.setCallback(new TenantAwareEqualsHashCodeAdvice(jobExecution));
-        return manager.register((JobExecution) enhancer.create(new Class[] { JobInstance.class, Long.class, JobParameters.class },
-                new Object[] { jobExecution.getJobInstance(), jobExecution.getId(), jobExecution.getJobParameters() }));
+        return manager.register((JobExecution) enhancer.create(new Class[] { long.class, JobInstance.class, JobParameters.class },
+                new Object[] { jobExecution.getId(), jobExecution.getJobInstance(), jobExecution.getJobParameters() }));
     }
 
     public static void close() {

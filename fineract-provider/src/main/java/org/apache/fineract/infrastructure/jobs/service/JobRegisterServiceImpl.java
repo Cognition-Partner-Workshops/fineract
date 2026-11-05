@@ -48,7 +48,7 @@ import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.Trigger;
 import org.quartz.TriggerListener;
-import org.springframework.batch.core.configuration.JobLocator;
+import org.springframework.batch.core.configuration.JobRegistry;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.launch.NoSuchJobException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,7 +84,7 @@ public class JobRegisterServiceImpl implements JobRegisterService, ApplicationLi
     private FineractProperties fineractProperties;
 
     @Autowired
-    private JobLocator jobLocator;
+    private JobRegistry jobRegistry;
 
     @Autowired
     private JobStarter jobStarter;
@@ -337,7 +337,10 @@ public class JobRegisterServiceImpl implements JobRegisterService, ApplicationLi
         JobNameData jobName = jobNameService.getJobByHumanReadableName(scheduledJobDetail.getJobName());
         Job job;
         try {
-            job = jobLocator.getJob(jobName.getEnumStyleName());
+            job = jobRegistry.getJob(jobName.getEnumStyleName());
+            if (job == null) {
+                throw new NoSuchJobException(jobName.getEnumStyleName());
+            }
         } catch (NoSuchJobException e) {
             throw new JobIsNotFoundOrNotEnabledException(e, jobName.getEnumStyleName());
         }

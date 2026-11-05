@@ -25,7 +25,6 @@ import org.apache.fineract.infrastructure.core.service.database.RoutingDataSourc
 import org.apache.fineract.infrastructure.jobs.config.FineractDataFieldMaxValueIncrementerFactory;
 import org.springframework.batch.core.configuration.JobRegistry;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
-import org.springframework.batch.core.configuration.support.JobRegistrySmartInitializingSingleton;
 import org.springframework.batch.core.configuration.support.MapJobRegistry;
 import org.springframework.batch.core.launch.support.TaskExecutorJobOperator;
 import org.springframework.batch.core.repository.JobRepository;
@@ -84,11 +83,6 @@ public class ScheduledJobRunnerConfig {
     @Bean
     public JobRegistry jobRegistry() {
         return new MapJobRegistry();
-    }
-
-    @Bean
-    public JobRegistrySmartInitializingSingleton jobRegistryInitializer(JobRegistry jobRegistry) {
-        return new JobRegistrySmartInitializingSingleton(jobRegistry);
     }
 
     @Bean

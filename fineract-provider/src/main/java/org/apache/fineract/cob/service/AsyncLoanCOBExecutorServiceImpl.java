@@ -42,7 +42,7 @@ import org.apache.fineract.infrastructure.jobs.exception.JobNotFoundException;
 import org.apache.fineract.infrastructure.jobs.service.JobStarter;
 import org.apache.fineract.infrastructure.jobs.service.SchedulerServiceConstants;
 import org.quartz.JobExecutionException;
-import org.springframework.batch.core.configuration.JobLocator;
+import org.springframework.batch.core.configuration.JobRegistry;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.parameters.InvalidJobParametersException;
 import org.springframework.batch.core.launch.JobExecutionAlreadyRunningException;
@@ -59,7 +59,7 @@ import org.springframework.stereotype.Service;
 @Conditional(LoanCOBEnabledCondition.class)
 public class AsyncLoanCOBExecutorServiceImpl implements AsyncLoanCOBExecutorService {
 
-    private final JobLocator jobLocator;
+    private final JobRegistry jobRegistry;
     private final ScheduledJobDetailRepository scheduledJobDetailRepository;
     private final JobStarter jobStarter;
     private final RetrieveLoanIdService retrieveLoanIdService;
@@ -94,7 +94,10 @@ public class AsyncLoanCOBExecutorServiceImpl implements AsyncLoanCOBExecutorServ
     private void executeLoanCOBDayByDayUntilCOBBusinessDate(LocalDate oldestCOBProcessedDate, LocalDate cobBusinessDate)
             throws NoSuchJobException, JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException,
             InvalidJobParametersException, JobRestartException, JobExecutionException {
-        Job job = jobLocator.getJob(LoanCOBConstant.JOB_NAME);
+        Job job = jobRegistry.getJob(LoanCOBConstant.JOB_NAME);
+        if (job == null) {
+            throw new NoSuchJobException(LoanCOBConstant.JOB_NAME);
+        }
         ScheduledJobDetail scheduledJobDetail = scheduledJobDetailRepository.findByJobName(LoanCOBConstant.JOB_HUMAN_READABLE_NAME);
         LocalDate executingBusinessDate = oldestCOBProcessedDate.plusDays(1);
         String tenantIdentifier = ThreadLocalContextUtil.getTenant().getTenantIdentifier();

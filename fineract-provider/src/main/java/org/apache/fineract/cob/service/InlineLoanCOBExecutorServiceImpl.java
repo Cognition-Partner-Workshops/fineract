@@ -62,7 +62,7 @@ import org.apache.fineract.infrastructure.jobs.service.JobStarter;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.springbatch.SpringBatchJobConstants;
 import org.springframework.batch.core.BatchStatus;
-import org.springframework.batch.core.configuration.JobLocator;
+import org.springframework.batch.core.configuration.JobRegistry;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.parameters.JobParameter;
@@ -90,7 +90,7 @@ public class InlineLoanCOBExecutorServiceImpl implements InlineExecutorService<L
     private final LoanAccountLockRepository loanAccountLockRepository;
     private final InlineLoanCOBExecutionDataParser dataParser;
     private final JobOperator jobOperator;
-    private final JobLocator jobLocator;
+    private final JobRegistry jobRegistry;
     private final JobRepository jobRepository;
     private final TransactionTemplate transactionTemplate;
     private final CustomJobParameterRepository customJobParameterRepository;
@@ -141,7 +141,10 @@ public class InlineLoanCOBExecutorServiceImpl implements InlineExecutorService<L
         lockLoanAccounts(loanIds, businessDate);
         Job inlineLoanCOBJob;
         try {
-            inlineLoanCOBJob = jobLocator.getJob(jobName);
+            inlineLoanCOBJob = jobRegistry.getJob(jobName);
+            if (inlineLoanCOBJob == null) {
+                throw new NoSuchJobException(jobName);
+            }
         } catch (NoSuchJobException e) {
             throw new JobNotFoundException(jobName, e);
         }
