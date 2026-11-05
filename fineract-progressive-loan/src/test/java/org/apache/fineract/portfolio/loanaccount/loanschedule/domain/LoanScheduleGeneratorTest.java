@@ -74,6 +74,9 @@ class LoanScheduleGeneratorTest {
 
         LoanSchedulePlan loanSchedule = generator.generate(mc, modelData);
 
+        assertEquals(0, loanSchedule.getTotalRepaymentAmount().compareTo(loanSchedule.getTotalOutstandingAmount()));
+        assertEquals(0, new BigDecimal("197.12").compareTo(loanSchedule.getTotalOutstandingAmount()));
+
         assertEquals(7, loanSchedule.getPeriods().size(), "Expected 7 periods without the downpayment period.");
 
         checkDisbursementPeriod((LoanSchedulePlanDisbursementPeriod) loanSchedule.getPeriods().get(0), LocalDate.of(2024, 1, 15),

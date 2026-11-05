@@ -154,7 +154,7 @@ public class ProgressiveLoanScheduleGenerator implements LoanScheduleGenerator {
         updatePeriodsWithCharges(currency, scheduleParams, periods, nonCompoundingCharges, mc);
 
         final BigDecimal totalPrincipalPaid = BigDecimal.ZERO;
-        final BigDecimal totalOutstanding = BigDecimal.ZERO;
+        final BigDecimal totalOutstanding = scheduleParams.getTotalRepaymentExpected().getAmount().subtract(totalPrincipalPaid);
 
         return LoanScheduleModel.from(periods, currency, interestScheduleModel.getLoanTermInDays(),
                 scheduleParams.getPrincipalToBeScheduled().plus(loanApplicationTerms.getDownPaymentAmount(), mc),

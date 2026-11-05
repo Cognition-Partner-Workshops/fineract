@@ -2310,9 +2310,10 @@ public class ClientSavingsIntegrationTest {
 
         HashMap summary = this.savingsAccountHelper.getSavingsSummary(savingsId);
 
-        Float balance = Float.parseFloat("-1000");
+        // Balance 1000 - lien 2000 - enforced minimum 100.
+        Float balance = Float.parseFloat("-1100");
 
-        assertEquals(balance, summary.get("availableBalance"), "Verifying available Balance is -1000");
+        assertEquals(balance, summary.get("availableBalance"), "Verifying available Balance is -1100");
         Integer depositTransactionId = (Integer) this.savingsAccountHelper.depositToSavingsAccount(savingsId, "1200",
                 SavingsAccountHelper.TRANSACTION_DATE, CommonConstants.RESPONSE_RESOURCE_ID);
         DateFormat dateFormat = new SimpleDateFormat("dd MMMM yyyy", Locale.US);

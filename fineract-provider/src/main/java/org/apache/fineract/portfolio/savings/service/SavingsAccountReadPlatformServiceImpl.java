@@ -122,6 +122,24 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
         this.savingAccountAssembler = savingAccountAssembler;
     }
 
+    static BigDecimal calculateAvailableBalance(final BigDecimal accountBalance, final BigDecimal onHoldFunds,
+            final BigDecimal onHoldAmount, final boolean enforceMinRequiredBalance, final BigDecimal minRequiredBalance) {
+        if (accountBalance == null) {
+            return null;
+        }
+        BigDecimal availableBalance = accountBalance;
+        if (onHoldFunds != null) {
+            availableBalance = availableBalance.subtract(onHoldFunds);
+        }
+        if (onHoldAmount != null) {
+            availableBalance = availableBalance.subtract(onHoldAmount);
+        }
+        if (enforceMinRequiredBalance && minRequiredBalance != null) {
+            availableBalance = availableBalance.subtract(minRequiredBalance);
+        }
+        return availableBalance;
+    }
+
     @Override
     public Collection<SavingsAccountData> retrieveAllForLookup(final Long clientId) {
 
@@ -491,16 +509,9 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
 
                     final BigDecimal onHoldAmount = JdbcSupport.getBigDecimalDefaultToNullIfZero(rs, "onHoldAmount");
 
-                    BigDecimal availableBalance = accountBalance;
-                    if (availableBalance != null && onHoldFunds != null) {
-
-                        availableBalance = availableBalance.subtract(onHoldFunds);
-                    }
-
-                    if (availableBalance != null && onHoldAmount != null) {
-
-                        availableBalance = availableBalance.subtract(onHoldAmount);
-                    }
+                    final BigDecimal availableBalance = calculateAvailableBalance(accountBalance, onHoldFunds, onHoldAmount,
+                            rs.getBoolean("enforceMinRequiredBalance"),
+                            JdbcSupport.getBigDecimalDefaultToNullIfZero(rs, "minRequiredBalance"));
 
                     BigDecimal interestNotPosted = BigDecimal.ZERO;
                     LocalDate lastInterestCalculationDate = null;
@@ -940,15 +951,8 @@ public class SavingsAccountReadPlatformServiceImpl implements SavingsAccountRead
 
             final BigDecimal onHoldAmount = rs.getBigDecimal("onHoldAmount");
 
-            BigDecimal availableBalance = accountBalance;
-            if (availableBalance != null && onHoldFunds != null) {
-                availableBalance = availableBalance.subtract(onHoldFunds);
-            }
-
-            if (availableBalance != null && onHoldAmount != null) {
-
-                availableBalance = availableBalance.subtract(onHoldAmount);
-            }
+            final BigDecimal availableBalance = calculateAvailableBalance(accountBalance, onHoldFunds, onHoldAmount,
+                    enforceMinRequiredBalance, minRequiredBalance);
 
             BigDecimal interestNotPosted = BigDecimal.ZERO;
             LocalDate lastInterestCalculationDate = null;
