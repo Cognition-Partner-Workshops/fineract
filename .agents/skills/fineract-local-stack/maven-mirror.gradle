@@ -1,0 +1,23 @@
+def useMirror = { repositories ->
+    repositories.configureEach { repository ->
+        if (repository instanceof MavenArtifactRepository &&
+                repository.url.host in ['repo.maven.apache.org', 'repo1.maven.org']) {
+            repository.url = uri('https://maven-central.storage-download.googleapis.com/maven2/')
+        }
+    }
+}
+settingsEvaluated { settings ->
+    settings.pluginManagement.repositories.clear()
+    settings.pluginManagement.repositories.maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
+    settings.pluginManagement.repositories.gradlePluginPortal()
+    useMirror(settings.pluginManagement.repositories)
+    useMirror(settings.dependencyResolutionManagement.repositories)
+}
+allprojects {
+    repositories.maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
+    buildscript.repositories.clear()
+    buildscript.repositories.maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
+    buildscript.repositories.gradlePluginPortal()
+    useMirror(buildscript.repositories)
+    useMirror(repositories)
+}
