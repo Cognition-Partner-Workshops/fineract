@@ -726,6 +726,11 @@ public class LoanWritePlatformServiceJpaRepositoryImpl implements LoanWritePlatf
             return changes;
         }
 
+        for (final SingleDisbursalCommand singleLoanDisbursalCommand : disbursalCommand) {
+            validateCollectionSheetLoanPermission("DISBURSE_LOAN");
+            this.loanAssembler.assembleFrom(singleLoanDisbursalCommand.getLoanId());
+        }
+
         final LocalDate nextPossibleRepaymentDate = null;
         final LocalDate rescheduledRepaymentDate = null;
 
@@ -1144,23 +1149,24 @@ public class LoanWritePlatformServiceJpaRepositoryImpl implements LoanWritePlatf
         final boolean allowTransactionsOnHoliday = this.configurationDomainService.allowTransactionsOnHolidayEnabled();
         for (final SingleRepaymentCommand singleLoanRepaymentCommand : repaymentCommand) {
             if (singleLoanRepaymentCommand != null) {
+                validateCollectionSheetLoanPermission("REPAYMENT_LOAN");
                 Loan loan = this.loanAssembler.assembleFrom(singleLoanRepaymentCommand.getLoanId());
-                final List<Holiday> holidays = this.holidayRepository.findByOfficeIdAndGreaterThanDate(loan.getOfficeId(),
-                        singleLoanRepaymentCommand.getTransactionDate());
-                final WorkingDays workingDays = this.workingDaysRepository.findOne();
-                final boolean allowTransactionsOnNonWorkingDay = this.configurationDomainService.allowTransactionsOnNonWorkingDayEnabled();
-                boolean isHolidayEnabled;
-                isHolidayEnabled = this.configurationDomainService.isRescheduleRepaymentsOnHolidaysEnabled();
-                holidayDetailDTO = new HolidayDetailDTO(isHolidayEnabled, holidays, workingDays, allowTransactionsOnHoliday,
-                        allowTransactionsOnNonWorkingDay);
-                loanTransactionValidator.validateRepaymentDateIsOnHoliday(singleLoanRepaymentCommand.getTransactionDate(),
-                        holidayDetailDTO.isAllowTransactionsOnHoliday(), holidayDetailDTO.getHolidays());
-                loanTransactionValidator.validateRepaymentDateIsOnNonWorkingDay(singleLoanRepaymentCommand.getTransactionDate(),
-                        holidayDetailDTO.getWorkingDays(), holidayDetailDTO.isAllowTransactionsOnNonWorkingDay());
-                isHolidayValidationDone = true;
-                break;
+                if (!isHolidayValidationDone) {
+                    final List<Holiday> holidays = this.holidayRepository.findByOfficeIdAndGreaterThanDate(loan.getOfficeId(),
+                            singleLoanRepaymentCommand.getTransactionDate());
+                    final WorkingDays workingDays = this.workingDaysRepository.findOne();
+                    final boolean allowTransactionsOnNonWorkingDay = this.configurationDomainService
+                            .allowTransactionsOnNonWorkingDayEnabled();
+                    final boolean isHolidayEnabled = this.configurationDomainService.isRescheduleRepaymentsOnHolidaysEnabled();
+                    holidayDetailDTO = new HolidayDetailDTO(isHolidayEnabled, holidays, workingDays, allowTransactionsOnHoliday,
+                            allowTransactionsOnNonWorkingDay);
+                    loanTransactionValidator.validateRepaymentDateIsOnHoliday(singleLoanRepaymentCommand.getTransactionDate(),
+                            holidayDetailDTO.isAllowTransactionsOnHoliday(), holidayDetailDTO.getHolidays());
+                    loanTransactionValidator.validateRepaymentDateIsOnNonWorkingDay(singleLoanRepaymentCommand.getTransactionDate(),
+                            holidayDetailDTO.getWorkingDays(), holidayDetailDTO.isAllowTransactionsOnNonWorkingDay());
+                    isHolidayValidationDone = true;
+                }
             }
-
         }
         for (final SingleRepaymentCommand singleLoanRepaymentCommand : repaymentCommand) {
             if (singleLoanRepaymentCommand != null) {
@@ -1183,6 +1189,14 @@ public class LoanWritePlatformServiceJpaRepositoryImpl implements LoanWritePlatf
         }
         changes.put("loanTransactions", transactionIds);
         return changes;
+    }
+
+    private void validateCollectionSheetLoanPermission(final String permission) {
+        this.context.authenticatedUser().validateHasPermissionTo(permission);
+        if (this.configurationDomainService.isMakerCheckerEnabledForTask(permission)) {
+            throw new GeneralPlatformDomainRuleException("error.msg.collection.sheet.maker.checker.enabled",
+                    "Collection sheet transactions are not supported when maker-checker is enabled for " + permission, permission);
+        }
     }
 
     @Transactional

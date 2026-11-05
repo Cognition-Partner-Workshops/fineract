@@ -21,7 +21,11 @@ package org.apache.fineract.portfolio.loanaccount.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -31,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.fineract.commands.service.CommandProcessingService;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
+import org.apache.fineract.infrastructure.configuration.domain.ConfigurationDomainService;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.domain.ExternalId;
@@ -40,11 +45,16 @@ import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.organisation.monetary.domain.Money;
 import org.apache.fineract.organisation.monetary.domain.MoneyHelper;
 import org.apache.fineract.portfolio.client.domain.Client;
+import org.apache.fineract.portfolio.collectionsheet.command.CollectionSheetBulkDisbursalCommand;
+import org.apache.fineract.portfolio.collectionsheet.command.CollectionSheetBulkRepaymentCommand;
+import org.apache.fineract.portfolio.collectionsheet.command.SingleDisbursalCommand;
+import org.apache.fineract.portfolio.collectionsheet.command.SingleRepaymentCommand;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanBuilder;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanCharge;
@@ -92,6 +102,9 @@ public class LoanWritePlatformServiceJpaRepositoryImplTest {
     private PlatformSecurityContext context;
 
     @Mock
+    private ConfigurationDomainService configurationDomainService;
+
+    @Mock
     private LoanTransactionValidator loanTransactionValidator;
 
     @Mock
@@ -127,7 +140,7 @@ public class LoanWritePlatformServiceJpaRepositoryImplTest {
         ThreadLocalContextUtil
                 .setBusinessDates(new HashMap<>(Map.of(BusinessDateType.BUSINESS_DATE, DateUtils.parseLocalDate("2025-05-20"))));
 
-        when(context.getAuthenticatedUserIfPresent()).thenReturn(appUser);
+        lenient().when(context.getAuthenticatedUserIfPresent()).thenReturn(appUser);
     }
 
     private void setupMoneyHelper() {
@@ -137,6 +150,85 @@ public class LoanWritePlatformServiceJpaRepositoryImplTest {
 
         // Initialize MoneyHelper with tenant configuration (HALF_EVEN = 6)
         MoneyHelper.initializeTenantRoundingMode("test", 6);
+    }
+
+    @Test
+    public void makeLoanBulkRepayment_requiresRepaymentPermissionBeforeLoadingLoans() {
+        when(context.authenticatedUser()).thenReturn(appUser);
+        doThrow(new NoAuthorizationException("Missing REPAYMENT_LOAN")).when(appUser).validateHasPermissionTo("REPAYMENT_LOAN");
+        lenient().when(loanAssembler.assembleFrom(LOAN_ID))
+                .thenThrow(new IllegalStateException("A loan was loaded before checking its permission"));
+
+        assertThrows(NoAuthorizationException.class, () -> loanWritePlatformService.makeLoanBulkRepayment(bulkRepaymentCommand()));
+        verify(loanAssembler, never()).assembleFrom(anyLong());
+    }
+
+    @Test
+    public void makeLoanBulkRepayment_rejectsMakerCheckerBeforeLoadingLoans() {
+        when(context.authenticatedUser()).thenReturn(appUser);
+        when(configurationDomainService.isMakerCheckerEnabledForTask("REPAYMENT_LOAN")).thenReturn(true);
+        lenient().when(loanAssembler.assembleFrom(LOAN_ID))
+                .thenThrow(new IllegalStateException("A loan was loaded before checking maker-checker"));
+
+        assertThrows(GeneralPlatformDomainRuleException.class,
+                () -> loanWritePlatformService.makeLoanBulkRepayment(bulkRepaymentCommand()));
+        verify(loanAssembler, never()).assembleFrom(anyLong());
+    }
+
+    @Test
+    public void makeLoanBulkRepayment_withPermissionReachesLoanAssembly() {
+        when(context.authenticatedUser()).thenReturn(appUser);
+        when(loanAssembler.assembleFrom(LOAN_ID)).thenThrow(new IllegalStateException("Reached loan assembly"));
+
+        assertThrows(IllegalStateException.class, () -> loanWritePlatformService.makeLoanBulkRepayment(bulkRepaymentCommand()));
+        verify(appUser).validateHasPermissionTo("REPAYMENT_LOAN");
+    }
+
+    @Test
+    public void bulkLoanDisbursal_requiresDisbursementPermissionBeforeLoadingLoans() {
+        when(context.authenticatedUser()).thenReturn(appUser);
+        doThrow(new NoAuthorizationException("Missing DISBURSE_LOAN")).when(appUser).validateHasPermissionTo("DISBURSE_LOAN");
+        lenient().when(loanAssembler.assembleFrom(LOAN_ID))
+                .thenThrow(new IllegalStateException("A loan was loaded before checking its permission"));
+
+        assertThrows(NoAuthorizationException.class,
+                () -> loanWritePlatformService.bulkLoanDisbursal(null, bulkDisbursalCommand(), false));
+        verify(loanAssembler, never()).assembleFrom(anyLong());
+    }
+
+    @Test
+    public void bulkLoanDisbursal_rejectsMakerCheckerBeforeLoadingLoans() {
+        when(context.authenticatedUser()).thenReturn(appUser);
+        when(configurationDomainService.isMakerCheckerEnabledForTask("DISBURSE_LOAN")).thenReturn(true);
+        lenient().when(loanAssembler.assembleFrom(LOAN_ID))
+                .thenThrow(new IllegalStateException("A loan was loaded before checking maker-checker"));
+
+        assertThrows(GeneralPlatformDomainRuleException.class,
+                () -> loanWritePlatformService.bulkLoanDisbursal(null, bulkDisbursalCommand(), false));
+        verify(loanAssembler, never()).assembleFrom(anyLong());
+    }
+
+    @Test
+    public void bulkLoanDisbursal_withPermissionReachesLoanAssembly() {
+        when(context.authenticatedUser()).thenReturn(appUser);
+        when(loanAssembler.assembleFrom(LOAN_ID)).thenThrow(new IllegalStateException("Reached loan assembly"));
+
+        assertThrows(IllegalStateException.class,
+                () -> loanWritePlatformService.bulkLoanDisbursal(null, bulkDisbursalCommand(), false));
+        verify(appUser).validateHasPermissionTo("DISBURSE_LOAN");
+    }
+
+    private CollectionSheetBulkRepaymentCommand bulkRepaymentCommand() {
+        final var transactionDate = DateUtils.parseLocalDate("2025-05-20");
+        final SingleRepaymentCommand repayment = new SingleRepaymentCommand(LOAN_ID, ExternalId.empty(), BigDecimal.valueOf(100),
+                transactionDate, null);
+        return new CollectionSheetBulkRepaymentCommand(null, transactionDate, new SingleRepaymentCommand[] { repayment });
+    }
+
+    private CollectionSheetBulkDisbursalCommand bulkDisbursalCommand() {
+        final var transactionDate = DateUtils.parseLocalDate("2025-05-20");
+        final SingleDisbursalCommand disbursal = new SingleDisbursalCommand(LOAN_ID, BigDecimal.valueOf(100), transactionDate);
+        return new CollectionSheetBulkDisbursalCommand(null, transactionDate, new SingleDisbursalCommand[] { disbursal });
     }
 
     @Test
