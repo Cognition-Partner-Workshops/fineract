@@ -18,6 +18,8 @@
  */
 package org.apache.fineract.commands.service;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,8 +34,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.fineract.commands.domain.CommandProcessingResultType;
 import org.apache.fineract.commands.domain.CommandSource;
 import org.apache.fineract.commands.domain.CommandSourceRepository;
 import org.apache.fineract.commands.domain.CommandWrapper;
@@ -56,6 +61,8 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class PortfolioCommandSourceWritePlatformServiceSecurityTest {
 
@@ -164,7 +171,110 @@ class PortfolioCommandSourceWritePlatformServiceSecurityTest {
     }
 
     @Test
-    void onlyOneConcurrentApprovalExecutesTheCommand() {
+    void malformedApproveCommandJsonReleasesClaim() {
+        final Long commandId = 43L;
+        final CommandSource commandSource = approvableCommand("{\"invalid\":");
+        final AtomicInteger claimState = new AtomicInteger();
+        final CommandSourceRepository statefulRepository = Mockito.mock(CommandSourceRepository.class, invocation -> {
+            if ("claimForApproval".equals(invocation.getMethod().getName())) {
+                return claimState.compareAndSet(0, 1) ? 1 : 0;
+            }
+            if ("releaseApprovalClaim".equals(invocation.getMethod().getName())) {
+                return claimState.compareAndSet(1, 0) ? 1 : 0;
+            }
+            return Answers.RETURNS_DEFAULTS.answer(invocation);
+        });
+        ReflectionTestUtils.setField(underTest, "commandSourceRepository", statefulRepository);
+        when(statefulRepository.findById(commandId)).thenReturn(Optional.of(commandSource));
+        checkerSetup();
+
+        assertThrows(JsonSyntaxException.class, () -> underTest.approveEntry(commandId));
+
+        assertAll(
+                () -> verify(statefulRepository, times(1)).releaseApprovalClaim(eq(commandId), any(AppUser.class),
+                        eq(CommandProcessingResultType.AWAITING_APPROVAL.getValue())),
+                () -> assertEquals(commandId, assertDoesNotThrow(() -> underTest.rejectEntry(commandId))));
+    }
+
+    @Test
+    void deleteFailureReleasesClaim() {
+        final Long commandId = 44L;
+        final CommandSource commandSource = awaitingCommand("REPAYMENT_LOAN");
+        when(commandSourceRepository.findById(commandId)).thenReturn(Optional.of(commandSource));
+        checkerSetup();
+        doThrow(new IllegalStateException("delete failed")).when(commandSourceRepository).deleteById(commandId);
+
+        assertThrows(IllegalStateException.class, () -> underTest.deleteEntry(commandId));
+
+        verifyClaimReleased(commandId);
+    }
+
+    @Test
+    void rollbackAfterSuccessfulApprovalReleasesClaim() {
+        final Long commandId = 45L;
+        final CommandSource commandSource = approvableCommand("{}");
+        when(commandSourceRepository.findById(commandId)).thenReturn(Optional.of(commandSource));
+        checkerSetup();
+        final CommandProcessingResult expected = Mockito.mock(CommandProcessingResult.class);
+        when(processAndLogCommandService.executeCommand(any(), any(), eq(true))).thenReturn(expected);
+        TransactionSynchronizationManager.initSynchronization();
+
+        try {
+            underTest.approveEntry(commandId);
+
+            final List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertEquals(1, synchronizations.size());
+            synchronizations.forEach(synchronization -> synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        } finally {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
+
+        verifyClaimReleased(commandId);
+    }
+
+    @Test
+    void commitAfterSuccessfulApprovalKeepsClaim() {
+        final Long commandId = 46L;
+        final CommandSource commandSource = approvableCommand("{}");
+        when(commandSourceRepository.findById(commandId)).thenReturn(Optional.of(commandSource));
+        checkerSetup();
+        final CommandProcessingResult expected = Mockito.mock(CommandProcessingResult.class);
+        when(processAndLogCommandService.executeCommand(any(), any(), eq(true))).thenReturn(expected);
+        TransactionSynchronizationManager.initSynchronization();
+
+        try {
+            underTest.approveEntry(commandId);
+
+            final List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertEquals(1, synchronizations.size());
+            synchronizations.forEach(synchronization -> synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+        } finally {
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
+
+        verify(commandSourceRepository, never()).releaseApprovalClaim(eq(commandId), any(AppUser.class),
+                eq(CommandProcessingResultType.AWAITING_APPROVAL.getValue()));
+    }
+
+    @Test
+    void rejectSaveFailureReleasesClaim() {
+        final Long commandId = 47L;
+        final CommandSource commandSource = awaitingCommand("REPAYMENT_LOAN");
+        when(commandSourceRepository.findById(commandId)).thenReturn(Optional.of(commandSource));
+        checkerSetup();
+        doThrow(new IllegalStateException("save failed")).when(commandSourceRepository).save(commandSource);
+
+        assertThrows(IllegalStateException.class, () -> underTest.rejectEntry(commandId));
+
+        verifyClaimReleased(commandId);
+    }
+
+    @Test
+    void secondApprovalAfterClaimIsRejected_protocol() {
         final Long commandId = 42L;
         final CommandSource commandSource = Mockito.mock(CommandSource.class);
         when(commandSource.isAwaitingApproval()).thenReturn(true);
@@ -190,6 +300,19 @@ class PortfolioCommandSourceWritePlatformServiceSecurityTest {
         assertThrows(CommandNotAwaitingApprovalException.class, () -> underTest.approveEntry(commandId));
 
         verify(processAndLogCommandService, times(1)).executeCommand(any(), any(), eq(true));
+    }
+
+    private CommandSource approvableCommand(final String commandAsJson) {
+        final CommandSource commandSource = awaitingCommand("APPROVE_LOAN");
+        when(commandSource.getActionName()).thenReturn("APPROVE");
+        when(commandSource.getEntityName()).thenReturn("LOAN");
+        when(commandSource.getCommandAsJson()).thenReturn(commandAsJson);
+        return commandSource;
+    }
+
+    private void verifyClaimReleased(final Long commandId) {
+        verify(commandSourceRepository).releaseApprovalClaim(eq(commandId), any(AppUser.class),
+                eq(CommandProcessingResultType.AWAITING_APPROVAL.getValue()));
     }
 
     private void authenticatedUserFor(final CommandWrapper wrapper, final Long userId) {
