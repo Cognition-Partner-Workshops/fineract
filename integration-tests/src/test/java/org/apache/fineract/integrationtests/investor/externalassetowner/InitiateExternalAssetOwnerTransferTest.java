@@ -1484,7 +1484,7 @@ public class InitiateExternalAssetOwnerTransferTest extends BaseLoanIntegrationT
         assertNull(result.getJournalEntryData());
     }
 
-    @RequiredArgsConstructor()
+    @RequiredArgsConstructor
     public static class ExpectedExternalTransferData {
 
         private final ExternalTransferData.StatusEnum status;
@@ -1527,7 +1527,7 @@ public class InitiateExternalAssetOwnerTransferTest extends BaseLoanIntegrationT
         }
     }
 
-    @RequiredArgsConstructor()
+    @RequiredArgsConstructor
     public static class ExpectedJournalEntryData {
 
         private final Long glAccountId;

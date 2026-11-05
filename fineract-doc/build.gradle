@@ -26,7 +26,7 @@ buildscript {
     dependencies {
         classpath 'org.asciidoctor:asciidoctor-gradle-jvm:4.0.5'
         classpath 'org.asciidoctor:asciidoctor-gradle-jvm-pdf:4.0.5'
-        classpath 'org.yaml:snakeyaml:2.5'
+        classpath 'org.yaml:snakeyaml:2.6'
     }
 }
 
@@ -42,7 +42,7 @@ apply plugin: 'org.asciidoctor.jvm.pdf'
 configurations.all {
     resolutionStrategy {
         // Force specific versions of dependencies to avoid conflicts
-        force 'org.yaml:snakeyaml:2.5',
+        force 'org.yaml:snakeyaml:2.6',
               'org.jruby:jruby-complete:10.0.2.0'
     }
 }
@@ -106,7 +106,7 @@ asciidoctor {
 
     dependsOn copyImages, copyDiagrams
 
-    dependsOn(':fineract-client:clean', ':fineract-client:buildAsciidoc')
+    dependsOn(':fineract-client:buildAsciidoc')
 }
 
 asciidoctorPdf {
@@ -131,7 +131,7 @@ asciidoctorPdf {
     //     }
     // }
     // fontsDir "$projectDir/src/resources/fonts"
-    dependsOn(':fineract-client:clean', ':fineract-client:buildAsciidoc')
+    dependsOn(':fineract-client:buildAsciidoc')
 }
 
 task doc(type: Zip) {

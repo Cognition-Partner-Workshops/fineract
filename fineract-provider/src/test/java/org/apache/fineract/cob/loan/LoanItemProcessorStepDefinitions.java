@@ -25,7 +25,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.cucumber.java8.En;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -33,11 +32,12 @@ import java.util.Collections;
 import java.util.TreeMap;
 import org.apache.fineract.cob.COBBusinessStepService;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.StepExecution;
-import org.springframework.batch.item.ExecutionContext;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.job.JobInstance;
+import org.springframework.batch.core.job.parameters.JobParameters;
+import org.springframework.batch.core.step.StepExecution;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 
-@SuppressFBWarnings(value = "RV_EXCEPTION_NOT_THROWN", justification = "False positive")
 public class LoanItemProcessorStepDefinitions implements En {
 
     private COBBusinessStepService cobBusinessStepService = mock(COBBusinessStepService.class);
@@ -53,7 +53,7 @@ public class LoanItemProcessorStepDefinitions implements En {
 
     public LoanItemProcessorStepDefinitions() {
         Given("/^The LoanItemProcessor.process method with item (.*)$/", (String loanItem) -> {
-            JobExecution jobExecution = new JobExecution(1L);
+            JobExecution jobExecution = new JobExecution(1L, new JobInstance(1L, "testJob"), new JobParameters());
             jobExecution.getExecutionContext().put(LoanCOBConstant.BUSINESS_DATE_PARAMETER_NAME,
                     LocalDate.now(ZoneId.systemDefault()).toString());
             StepExecution stepExecution = new StepExecution("test", jobExecution);

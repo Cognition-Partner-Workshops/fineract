@@ -28,13 +28,13 @@ import org.apache.fineract.infrastructure.jobs.service.JobName;
 import org.apache.fineract.infrastructure.springbatch.PropertyService;
 import org.apache.fineract.portfolio.loanaccount.domain.Loan;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanRepository;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobScope;
+import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
+import org.springframework.batch.core.job.parameters.RunIdIncrementer;
 import org.springframework.batch.core.listener.ExecutionContextPromotionListener;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.integration.config.annotation.EnableBatchIntegration;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -116,8 +116,7 @@ public class LoanInlineCOBConfig {
 
     @Bean
     public InlineCOBLoanItemWriter inlineCobWorkerItemWriter() {
-        InlineCOBLoanItemWriter repositoryItemWriter = new InlineCOBLoanItemWriter(loanLockingService);
-        repositoryItemWriter.setRepository(loanRepository);
+        InlineCOBLoanItemWriter repositoryItemWriter = new InlineCOBLoanItemWriter(loanLockingService, loanRepository);
         return repositoryItemWriter;
     }
 

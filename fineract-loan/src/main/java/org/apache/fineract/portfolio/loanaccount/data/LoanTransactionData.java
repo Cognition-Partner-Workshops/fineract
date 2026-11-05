@@ -26,7 +26,6 @@ import java.util.Collection;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.fineract.infrastructure.codes.data.CodeValueData;
@@ -42,7 +41,7 @@ import org.apache.fineract.portfolio.paymenttype.data.PaymentTypeData;
  * Immutable data object representing a loan transaction.
  */
 @Getter
-@Builder(builderClassName = "Builder")
+@lombok.Builder(builderClassName = "Builder")
 @AllArgsConstructor(access = AccessLevel.PUBLIC)
 public class LoanTransactionData implements Serializable {
 

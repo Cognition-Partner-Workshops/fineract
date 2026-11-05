@@ -26,7 +26,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.cucumber.java8.En;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -42,15 +41,16 @@ import org.apache.fineract.infrastructure.core.domain.FineractPlatformTenant;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.StepContribution;
-import org.springframework.batch.core.StepExecution;
-import org.springframework.batch.item.ExecutionContext;
-import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.job.JobInstance;
+import org.springframework.batch.core.job.parameters.JobParameters;
+import org.springframework.batch.core.step.StepContribution;
+import org.springframework.batch.core.step.StepExecution;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
+import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-@SuppressFBWarnings(value = "RV_EXCEPTION_NOT_THROWN", justification = "False positive")
 public class ApplyLoanLockTaskletStepDefinitions implements En {
 
     ArgumentCaptor<List> valueCaptor = ArgumentCaptor.forClass(List.class);
@@ -72,7 +72,7 @@ public class ApplyLoanLockTaskletStepDefinitions implements En {
             HashMap<BusinessDateType, LocalDate> businessDateMap = new HashMap<>();
             businessDateMap.put(BusinessDateType.COB_DATE, LocalDate.now(ZoneId.systemDefault()));
             ThreadLocalContextUtil.setBusinessDates(businessDateMap);
-            JobExecution jobExecution = new JobExecution(1L, null);
+            JobExecution jobExecution = new JobExecution(1L, new JobInstance(1L, "testJob"), new JobParameters());
             StepExecution stepExecution = new StepExecution("test", jobExecution);
             ExecutionContext executionContext = new ExecutionContext();
             COBParameter loanCOBParameter = new COBParameter(1L, 4L);

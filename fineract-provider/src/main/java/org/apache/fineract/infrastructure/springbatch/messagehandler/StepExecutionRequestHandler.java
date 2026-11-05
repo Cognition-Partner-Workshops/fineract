@@ -20,11 +20,10 @@ package org.apache.fineract.infrastructure.springbatch.messagehandler;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.BatchStatus;
-import org.springframework.batch.core.JobInterruptedException;
-import org.springframework.batch.core.Step;
-import org.springframework.batch.core.StepExecution;
-import org.springframework.batch.core.explore.JobExplorer;
+import org.springframework.batch.core.job.JobInterruptedException;
 import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.Step;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.batch.core.step.StepLocator;
 import org.springframework.batch.integration.partition.StepExecutionRequest;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -36,17 +35,15 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(value = "fineract.mode.batch-worker-enabled", havingValue = "true")
 public class StepExecutionRequestHandler {
 
-    private final JobRepository jobRepository;
     private final StepLocator stepLocator;
-    private final JobExplorer jobExplorer;
+    private final JobRepository jobRepository;
 
     public void handle(StepExecutionRequest request) {
 
-        Long jobExecutionId = request.getJobExecutionId();
         Long stepExecutionId = request.getStepExecutionId();
         String stepName = request.getStepName();
 
-        StepExecution stepExecution = jobExplorer.getStepExecution(jobExecutionId, stepExecutionId);
+        StepExecution stepExecution = jobRepository.getStepExecution(stepExecutionId);
         if (stepExecution == null) {
             throw new IllegalStateException("stepExecution cannot be null");
         }

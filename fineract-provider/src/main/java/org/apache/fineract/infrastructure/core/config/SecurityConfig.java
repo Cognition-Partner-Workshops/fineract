@@ -49,7 +49,7 @@ import org.apache.fineract.infrastructure.security.service.TwoFactorService;
 import org.apache.fineract.notification.service.UserNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.web.ServerProperties;
+import org.springframework.boot.web.server.autoconfigure.ServerProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -182,13 +182,14 @@ public class SecurityConfig {
             http.addFilterAfter(twoFactorAuthenticationFilter(), CorrelationHeaderFilter.class);
         }
 
-        if (serverProperties.getSsl().isEnabled()) {
-            http.requiresChannel(channel -> channel.requestMatchers(API_MATCHER.matcher("/api/**")).requiresSecure());
+        if (fineractProperties.getSecurity().getHsts().isEnabled()) {
+            http.redirectToHttps(Customizer.withDefaults());
+        } else if (serverProperties.getSsl().isEnabled()) {
+            http.redirectToHttps(https -> https.requestMatchers(API_MATCHER.matcher("/api/**")));
         }
 
         if (fineractProperties.getSecurity().getHsts().isEnabled()) {
-            http.requiresChannel(channel -> channel.anyRequest().requiresSecure()).headers(
-                    headers -> headers.httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000)));
+            http.headers(headers -> headers.httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000)));
         }
 
         if (fineractProperties.getSecurity().getCors().isEnabled()) {
@@ -245,8 +246,7 @@ public class SecurityConfig {
 
     @Bean(name = "customAuthenticationProvider")
     public DaoAuthenticationProvider authProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }

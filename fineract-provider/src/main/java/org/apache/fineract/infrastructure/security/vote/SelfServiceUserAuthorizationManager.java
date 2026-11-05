@@ -28,7 +28,7 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 public class SelfServiceUserAuthorizationManager implements AuthorizationManager<RequestAuthorizationContext> {
 
     @Override
-    public AuthorizationDecision check(Supplier<Authentication> authentication, RequestAuthorizationContext fi) {
+    public AuthorizationDecision authorize(Supplier<? extends Authentication> authentication, RequestAuthorizationContext fi) {
         if (!"OPTIONS".equalsIgnoreCase(fi.getRequest().getMethod())) {
             AppUser user = (AppUser) authentication.get().getPrincipal();
 

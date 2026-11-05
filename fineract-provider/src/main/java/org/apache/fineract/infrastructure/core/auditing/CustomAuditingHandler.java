@@ -21,7 +21,6 @@ package org.apache.fineract.infrastructure.core.auditing;
 import org.apache.fineract.infrastructure.core.domain.AbstractAuditableWithUTCDateTimeCustom;
 import org.springframework.data.auditing.AuditableBeanWrapper;
 import org.springframework.data.auditing.AuditingHandler;
-import org.springframework.data.auditing.DateTimeProvider;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.mapping.PersistentEntity;
 import org.springframework.data.mapping.PersistentProperty;
@@ -31,6 +30,8 @@ import org.springframework.lang.NonNull;
 import org.springframework.util.Assert;
 
 public class CustomAuditingHandler extends AuditingHandler {
+
+    private final AuditingHandler utcAuditingHandler;
 
     /**
      * Creates a new {@link AuditableBeanWrapper} using the given {@link PersistentEntities} when looking up auditing
@@ -42,6 +43,9 @@ public class CustomAuditingHandler extends AuditingHandler {
      */
     public CustomAuditingHandler(PersistentEntities entities) {
         super(entities);
+        setDateTimeProvider(CustomDateTimeProvider.INSTANCE);
+        utcAuditingHandler = new AuditingHandler(entities);
+        utcAuditingHandler.setDateTimeProvider(CustomDateTimeProvider.UTC);
     }
 
     /**
@@ -59,12 +63,22 @@ public class CustomAuditingHandler extends AuditingHandler {
         setAuditorAware(auditorAware);
     }
 
-    private DateTimeProvider fetchDateTimeProvider(Object bean) {
-        if (bean instanceof AbstractAuditableWithUTCDateTimeCustom) {
-            return CustomDateTimeProvider.UTC;
-        } else {
-            return CustomDateTimeProvider.INSTANCE;
-        }
+    @Override
+    public void setAuditorAware(AuditorAware<?> auditorAware) {
+        super.setAuditorAware(auditorAware);
+        utcAuditingHandler.setAuditorAware(auditorAware);
+    }
+
+    @Override
+    public void setDateTimeForNow(boolean dateTimeForNow) {
+        super.setDateTimeForNow(dateTimeForNow);
+        utcAuditingHandler.setDateTimeForNow(dateTimeForNow);
+    }
+
+    @Override
+    public void setModifyOnCreation(boolean modifyOnCreation) {
+        super.setModifyOnCreation(modifyOnCreation);
+        utcAuditingHandler.setModifyOnCreation(modifyOnCreation);
     }
 
     /**
@@ -76,8 +90,8 @@ public class CustomAuditingHandler extends AuditingHandler {
     @Override
     public <T> T markCreated(@NonNull T source) {
         Assert.notNull(source, "Source entity must not be null");
-        setDateTimeProvider(fetchDateTimeProvider(source));
-        return super.markCreated(source);
+        return source instanceof AbstractAuditableWithUTCDateTimeCustom ? utcAuditingHandler.markCreated(source)
+                : super.markCreated(source);
     }
 
     /**
@@ -89,7 +103,7 @@ public class CustomAuditingHandler extends AuditingHandler {
     @Override
     public <T> T markModified(@NonNull T source) {
         Assert.notNull(source, "Source entity must not be null");
-        setDateTimeProvider(fetchDateTimeProvider(source));
-        return super.markModified(source);
+        return source instanceof AbstractAuditableWithUTCDateTimeCustom ? utcAuditingHandler.markModified(source)
+                : super.markModified(source);
     }
 }

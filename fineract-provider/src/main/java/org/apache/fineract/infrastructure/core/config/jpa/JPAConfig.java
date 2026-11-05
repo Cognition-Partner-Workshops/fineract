@@ -31,12 +31,13 @@ import org.apache.fineract.infrastructure.core.persistence.DatabaseSelectingPers
 import org.apache.fineract.infrastructure.core.service.database.DatabaseTypeResolver;
 import org.apache.fineract.infrastructure.core.service.database.RoutingDataSource;
 import org.eclipse.persistence.config.PersistenceUnitProperties;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.orm.jpa.EntityManagerFactoryBuilderCustomizer;
-import org.springframework.boot.autoconfigure.orm.jpa.JpaBaseConfiguration;
-import org.springframework.boot.autoconfigure.orm.jpa.JpaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.orm.jpa.EntityManagerFactoryBuilder;
+import org.springframework.boot.jpa.EntityManagerFactoryBuilder;
+import org.springframework.boot.jpa.autoconfigure.EntityManagerFactoryBuilderCustomizer;
+import org.springframework.boot.jpa.autoconfigure.JpaBaseConfiguration;
+import org.springframework.boot.jpa.autoconfigure.JpaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
@@ -106,8 +107,9 @@ public class JPAConfig extends JpaBaseConfiguration {
     @Override
     public EntityManagerFactoryBuilder entityManagerFactoryBuilder(JpaVendorAdapter jpaVendorAdapter,
             ObjectProvider<PersistenceUnitManager> persistenceUnitManager,
-            ObjectProvider<EntityManagerFactoryBuilderCustomizer> customizers) {
-        EntityManagerFactoryBuilder builder = super.entityManagerFactoryBuilder(jpaVendorAdapter, persistenceUnitManager, customizers);
+            ObjectProvider<EntityManagerFactoryBuilderCustomizer> customizers, ListableBeanFactory beanFactory) {
+        EntityManagerFactoryBuilder builder = super.entityManagerFactoryBuilder(jpaVendorAdapter, persistenceUnitManager, customizers,
+                beanFactory);
         builder.setPersistenceUnitPostProcessors(getPersistenceUnitPostProcessors());
         return builder;
     }

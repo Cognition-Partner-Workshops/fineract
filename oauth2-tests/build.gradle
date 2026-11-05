@@ -18,7 +18,7 @@
  */
 description = 'Fineract Integration Tests for OAuth2'
 
-apply plugin: 'com.bmuschko.cargo'
+apply plugin: 'org.apache.fineract.cargo-local'
 
 // Configuration for the Gradle Cargo plugin
 // https://github.com/bmuschko/gradle-cargo-plugin
@@ -41,7 +41,7 @@ dependencies {
 }
 
 cargo {
-    containerId "tomcat10x"
+    containerId "tomcat11x"
 
     // looks like Cargo doesn't detect the WAR file automatically in the multi-module setup
     deployable {

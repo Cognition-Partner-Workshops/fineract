@@ -18,8 +18,12 @@
  */
 // TODO: this is work in progress, please follow FINERACT-1171
 buildscript {
+    configurations.classpath {
+        resolutionStrategy.force 'com.mycila:license-maven-plugin:4.1'
+    }
+
     ext {
-        jacocoVersion = '0.8.12'
+        jacocoVersion = '0.8.14'
         retrofitVersion = '2.9.0'
         okhttpVersion = '4.9.3'
         fineractCustomProjects = []
@@ -83,40 +87,40 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.bmuschko:gradle-cargo-plugin:2.9.0'
-        classpath 'org.eclipse.persistence:eclipselink:4.0.6'
-        classpath 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
+        classpath 'org.apache.maven:maven-plugin-api:3.9.11'
+        classpath "org.apache.groovy:groovy-sql:${GroovySystem.version}"
+        classpath 'org.eclipse.persistence:eclipselink:5.0.2'
+        classpath 'jakarta.ws.rs:jakarta.ws.rs-api:4.0.0'
         classpath 'com.google.cloud.tools:jib-layer-filter-extension-gradle:0.3.0'
-        classpath 'org.apache.commons:commons-lang3:3.18.0'
-        classpath 'io.swagger.core.v3:swagger-jaxrs2-jakarta:2.2.22'
+        classpath 'org.apache.commons:commons-lang3:3.20.0'
+        classpath 'io.swagger.core.v3:swagger-jaxrs2-jakarta:2.2.55'
         classpath 'jakarta.servlet:jakarta.servlet-api:6.1.0'
     }
 }
 
 plugins {
-    id 'me.qoomon.git-versioning' version '6.4.4'
-    id "org.barfuin.gradle.taskinfo" version "2.2.0"
+    id 'me.qoomon.git-versioning' version '7.0.0'
+    id "org.barfuin.gradle.taskinfo" version "3.1.0"
     id 'com.adarshr.test-logger' version '4.0.0'
-    id 'com.diffplug.spotless' version '6.25.0' apply false
-    id 'org.nosphere.apache.rat' version '0.8.1' apply false
+    id 'com.diffplug.spotless' version '8.11.0' apply false
+    id 'org.nosphere.apache.rat' version '0.11.0' apply false
     id 'com.github.hierynomus.license' version '0.16.1' apply false
-    id 'com.github.jk1.dependency-license-report' version '2.9' apply false
-    id 'org.zeroturnaround.gradle.jrebel' version '1.2.0' apply false
-    id 'org.springframework.boot' version '3.5.6' apply false
-    id 'net.ltgt.errorprone' version '4.1.0' apply false
+    id 'com.github.jk1.dependency-license-report' version '3.1.5' apply false
+    id 'org.zeroturnaround.gradle.jrebel' version '1.2.3' apply false
+    id 'org.springframework.boot' version '4.1.2' apply false
+    id 'net.ltgt.errorprone' version '5.2.0' apply false
     id 'io.swagger.core.v3.swagger-gradle-plugin' version '2.2.23' apply false
-    id 'com.gorylenko.gradle-git-properties' version '2.4.2' apply false
+    id 'com.gorylenko.gradle-git-properties' version '4.0.1' apply false
     id 'org.asciidoctor.jvm.convert' version '4.0.5' apply false
     id 'org.asciidoctor.jvm.pdf' version '4.0.5' apply false
-    id 'com.google.cloud.tools.jib' version '3.4.5' apply false
-    id 'org.sonarqube' version '6.0.1.5171'
+    id 'com.google.cloud.tools.jib' version '3.5.4' apply false
+    id 'org.sonarqube' version '7.5.0.8588'
     id 'com.github.andygoossens.modernizer' version '1.10.0' apply false
-    id 'com.github.spotbugs' version '6.0.26' apply false
-    id 'se.thinkcode.cucumber-runner' version '0.0.11' apply false
+    id 'com.github.spotbugs' version '6.5.13' apply false
     id "com.github.davidmc24.gradle.plugin.avro-base" version "1.9.1" apply false
     id 'org.openapi.generator' version '7.8.0' apply false
-    id 'com.gradleup.shadow' version '8.3.5' apply false
-    id 'me.champeau.jmh' version '0.7.1' apply false
+    id 'com.gradleup.shadow' version '9.6.1' apply false
+    id 'me.champeau.jmh' version '0.7.4' apply false
 }
 
 apply from: "${rootDir}/buildSrc/src/main/groovy/org.apache.fineract.release.gradle"
@@ -148,7 +152,6 @@ gitVersioning.apply {
     }
 }
 
-ext['groovy.version'] = '4.0.17'
 ext['swaggerFile'] = "$rootDir/fineract-provider/build/resources/main/static/fineract.json".toString()
 
 // Apply static weaving configuration to all subprojects
@@ -172,12 +175,8 @@ allprojects  {
         }
     }
 
-    configurations {
-        implementation {
-            exclude group: 'commons-logging', module: 'commons-logging'
-        }
-
-        api {
+    pluginManager.withPlugin('java-library') {
+        configurations.named('api') {
             canBeResolved = true
         }
     }
@@ -219,7 +218,7 @@ allprojects  {
         format 'misc', {
             target '**/*.md', '**/*.properties', '**/.gitignore', '**/.openapi-generator-ignore', '**/*.yml', '**/*.xml', '**/**.json', '**/*.sql'
             targetExclude '**/build/**', '**/bin/**', '**/.settings/**', '**/.idea/**', '**/.gradle/**', '**/gradlew.bat', '**/licenses/**', '**/banner.txt', '.vscode/**', '.profileconfig.json'
-            indentWithSpaces(4)
+            leadingTabsToSpaces(4)
             endWithNewline()
             trimTrailingWhitespace()
         }
@@ -227,8 +226,8 @@ allprojects  {
         groovyGradle {
             target '*.gradle', '**/*.gradle'
             targetExclude '**/build/**', '/**/build.gradle' // TODO: temporary disabled on build.gradle until someone fix this issue: https://github.com/diffplug/spotless/issues/1807
-            greclipse()
-            indentWithSpaces(4)
+            greclipse('4.29')
+            leadingTabsToSpaces(4)
             endWithNewline()
             trimTrailingWhitespace()
         }
@@ -240,6 +239,13 @@ allprojects  {
     // https://github.com/hierynomus/license-gradle-plugin
     license {
         header rootProject.file("$rootDir/APACHE_LICENSETEXT.md")
+        mapping([
+            fx: 'JAVADOC_STYLE',
+            groovy: 'JAVADOC_STYLE',
+            java: 'JAVADOC_STYLE',
+            kt: 'JAVADOC_STYLE',
+            scala: 'JAVADOC_STYLE'
+        ])
         excludes([
             "**/gradlew*",
             "**/git.properties",
@@ -382,7 +388,7 @@ configure(project.fineractJavaProjects) {
 
     java {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(21)
+            languageVersion = JavaLanguageVersion.of(25)
         }
         withSourcesJar()
         withJavadocJar()
@@ -425,11 +431,11 @@ configure(project.fineractJavaProjects) {
 
     group = 'org.apache.fineract'
 
-    configurations.named('spotbugs').configure {
+    configurations.matching { it.name in ['spotbugs', 'modernizer'] }.configureEach {
         resolutionStrategy.eachDependency {
             if (it.requested.group == 'org.ow2.asm') {
-                it.useVersion '9.5'
-                it.because "Asm 9.5 is required for JDK 21 support"
+                it.useVersion '9.8'
+                it.because "ASM 9.8 is required for Java 25 support"
             }
         }
     }
@@ -492,7 +498,7 @@ configure(project.fineractJavaProjects) {
             targetExclude '**/build/**', '**/bin/**', '**/out/**'
             importOrder() //sort imports alphabetically
             removeUnusedImports()
-            eclipse().configFile "$rootDir/config/fineractdev-formatter.xml"
+            eclipse('4.29').configFile "$rootDir/config/fineractdev-formatter.xml"
             endWithNewline()
             trimTrailingWhitespace()
 
@@ -559,7 +565,7 @@ configure(project.fineractJavaProjects) {
     // Configuration for the errorprone plugin
     // https://github.com/tbroyer/gradle-errorprone-plugin
     dependencies {
-        errorprone "com.google.errorprone:error_prone_core:2.35.1"
+        errorprone "com.google.errorprone:error_prone_core:2.42.0"
     }
 
     tasks.withType(JavaCompile).configureEach {
@@ -720,6 +726,7 @@ configure(project.fineractJavaProjects) {
 
     // To generate an HTML report instead of XML
     spotbugs {
+        toolVersion = '4.9.8'
         // reportLevel = 'high'
         // reportLevel = com.github.spotbugs.snom.Confidence.DEFAULT
         showProgress = false
@@ -745,10 +752,11 @@ configure(project.fineractJavaProjects) {
 
     // Configuration for https://github.com/andygoossens/gradle-modernizer-plugin
     modernizer {
+        toolVersion = '2.9.0'
         includeTestClasses = true
         failOnViolations = true
         violationLogLevel="error"
-        javaVersion = project.targetCompatibility
+        javaVersion = java.targetCompatibility.toString()
         ignoreGeneratedClasses = true
         // Rules can be found here: https://github.com/gaul/modernizer-maven-plugin/blob/master/modernizer-maven-plugin/src/main/resources/modernizer.xml
         exclusions = [
@@ -795,7 +803,6 @@ configure(project.fineractCustomProjects) {
             exclude group: 'org.skyscreamer'
         }
         testImplementation( 'org.mockito:mockito-core',
-                'org.mockito:mockito-inline',
                 'org.mockito:mockito-junit-jupiter',
                 'org.junit.jupiter:junit-jupiter-api',
                 'org.junit.jupiter:junit-jupiter-engine',

@@ -29,7 +29,6 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 
 import com.google.gson.JsonObject;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.fineract.TestConfiguration;
@@ -43,17 +42,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
 @ContextConfiguration(classes = TestConfiguration.class)
-@SuppressFBWarnings(value = "RV_EXCEPTION_NOT_THROWN", justification = "False positive")
 public class DatatableReadServiceImplTest {
 
     @Autowired
@@ -62,10 +60,10 @@ public class DatatableReadServiceImplTest {
     @Autowired
     private GenericDataService genericDataService;
 
-    @Mock
+    @Autowired
     private DatabaseTypeResolver databaseTypeResolver;
 
-    @Mock
+    @MockitoBean
     private DatabaseSpecificSQLGenerator sqlGenerator;
 
     @Autowired

@@ -25,3 +25,7 @@ base {
 }
 
 apply from: 'dependencies.gradle'
+
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
+}

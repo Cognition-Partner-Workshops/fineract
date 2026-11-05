@@ -43,28 +43,30 @@ import org.apache.fineract.useradministration.domain.AppUser;
 import org.apache.fineract.useradministration.domain.AppUserRepositoryWrapper;
 import org.quartz.JobExecutionException;
 import org.springframework.batch.core.BatchStatus;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameter;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersBuilder;
-import org.springframework.batch.core.JobParametersInvalidException;
-import org.springframework.batch.core.explore.JobExplorer;
-import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
-import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
-import org.springframework.batch.core.repository.JobRestartException;
+import org.springframework.batch.core.job.Job;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.job.JobInstance;
+import org.springframework.batch.core.job.parameters.InvalidJobParametersException;
+import org.springframework.batch.core.job.parameters.JobParameter;
+import org.springframework.batch.core.job.parameters.JobParameters;
+import org.springframework.batch.core.job.parameters.JobParametersBuilder;
+import org.springframework.batch.core.launch.JobExecutionAlreadyRunningException;
+import org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.launch.JobOperator;
+import org.springframework.batch.core.launch.JobRestartException;
+import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
 
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class JobStarter {
 
-    private final JobExplorer jobExplorer;
-    private final JobLauncher jobLauncher;
+    private final JobRepository jobRepository;
+    private final JobOperator jobOperator;
     private final JobParameterRepository jobParameterRepository;
     private final List<JobParameterProvider<?>> jobParameterProviders;
     private final JobNameService jobNameService;
@@ -77,7 +79,7 @@ public class JobStarter {
 
     public JobExecution run(Job job, ScheduledJobDetail scheduledJobDetail, Set<JobParameterDTO> jobParameterDTOSet,
             String tenantIdentifier) throws JobInstanceAlreadyCompleteException, JobExecutionAlreadyRunningException,
-            JobParametersInvalidException, JobRestartException, JobExecutionException {
+            InvalidJobParametersException, JobRestartException, JobExecutionException {
 
         boolean contextInitialized = false;
         final FineractPlatformTenant existingTenant = ThreadLocalContextUtil.getTenant();
@@ -97,13 +99,13 @@ public class JobStarter {
             }
 
             Map<String, JobParameter<?>> jobParameterMap = getJobParameter(scheduledJobDetail);
-            JobParameters jobParameters = new JobParametersBuilder(jobExplorer).getNextJobParameters(job)
-                    .addJobParameters(new JobParameters(jobParameterMap))
-                    .addJobParameters(new JobParameters(provideCustomJobParameters(
+            JobParameters jobParameters = new JobParametersBuilder(nextJobParameters(job, jobRepository))
+                    .addJobParameters(new JobParameters(Set.copyOf(jobParameterMap.values())))
+                    .addJobParameters(new JobParameters(Set.copyOf(provideCustomJobParameters(
                             jobNameService.getJobByHumanReadableName(scheduledJobDetail.getJobName()).getEnumStyleName(),
-                            jobParameterDTOSet)))
+                            jobParameterDTOSet).values())))
                     .toJobParameters();
-            JobExecution result = jobLauncher.run(job, jobParameters);
+            JobExecution result = jobOperator.run(job, jobParameters);
             if (FAILED_STATUSES.contains(result.getStatus())) {
                 throw new JobExecutionException(result.getExitStatus().toString());
             }
@@ -115,12 +117,14 @@ public class JobStarter {
         }
     }
 
-    protected Map<String, org.springframework.batch.core.JobParameter<?>> getJobParameter(ScheduledJobDetail scheduledJobDetail) {
+    protected Map<String, org.springframework.batch.core.job.parameters.JobParameter<?>> getJobParameter(
+            ScheduledJobDetail scheduledJobDetail) {
         List<org.apache.fineract.infrastructure.jobs.domain.JobParameter> jobParameterList = jobParameterRepository
                 .findJobParametersByJobId(scheduledJobDetail.getId());
         Map<String, JobParameter<?>> jobParameterMap = new HashMap<>();
         for (org.apache.fineract.infrastructure.jobs.domain.JobParameter jobParameter : jobParameterList) {
-            jobParameterMap.put(jobParameter.getParameterName(), new JobParameter<>(jobParameter.getParameterValue(), String.class));
+            jobParameterMap.put(jobParameter.getParameterName(),
+                    new JobParameter<>(jobParameter.getParameterName(), jobParameter.getParameterValue(), String.class));
         }
         return jobParameterMap;
     }
@@ -131,5 +135,13 @@ public class JobStarter {
         Map<String, ? extends JobParameter<?>> map = jobParameterProvider
                 .map(parameterProvider -> parameterProvider.provide(jobParameterDTOSet)).orElse(Collections.emptyMap());
         return map.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    public static JobParameters nextJobParameters(Job job, JobRepository jobRepository) {
+        Assert.state(job.getJobParametersIncrementer() != null, "No job parameters incrementer found");
+        JobInstance instance = jobRepository.getLastJobInstance(job.getName());
+        JobExecution execution = instance == null ? null : jobRepository.getLastJobExecution(instance);
+        JobParameters parameters = execution == null ? new JobParameters() : execution.getJobParameters();
+        return job.getJobParametersIncrementer().getNext(parameters);
     }
 }

@@ -46,8 +46,7 @@ project.afterEvaluate {
                 duplicatesStrategy = DuplicatesStrategy.EXCLUDE
             }
 
-            javaexec {
-                description = 'Performs EclipseLink static weaving of entity classes'
+            services.get(ExecOperations).javaexec {
                 mainClass.set("org.eclipse.persistence.tools.weaving.jpa.StaticWeave")
                 classpath = project.sourceSets.main.runtimeClasspath
                 args = [

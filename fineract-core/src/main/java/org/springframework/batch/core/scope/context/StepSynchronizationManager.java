@@ -19,8 +19,8 @@
 package org.springframework.batch.core.scope.context;
 
 import org.apache.fineract.infrastructure.jobs.TenantAwareEqualsHashCodeAdvice;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.job.JobExecution;
+import org.springframework.batch.core.step.StepExecution;
 import org.springframework.cglib.proxy.Enhancer;
 import org.springframework.lang.Nullable;
 

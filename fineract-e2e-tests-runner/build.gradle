@@ -18,8 +18,7 @@
  */
 
 plugins {
-    id 'se.thinkcode.cucumber-runner' version '0.0.11'
-    id 'io.qameta.allure' version '2.12.0'
+    id 'io.qameta.allure' version '4.3.0'
 }
 
 apply plugin: 'java'
@@ -33,7 +32,7 @@ dependencies {
     testImplementation(project(':fineract-avro-schemas'))
     testImplementation(project(':fineract-client'))
     testImplementation(project(':fineract-client-feign'))
-    testImplementation(project(':fineract-e2e-tests-core').sourceSets.test.output)
+    testImplementation(rootProject.project(':fineract-e2e-tests-core').sourceSets.test.output)
 
     testImplementation 'org.springframework:spring-context'
     implementation 'org.springframework:spring-test'
@@ -41,14 +40,14 @@ dependencies {
 
     testImplementation 'com.squareup.retrofit2:retrofit:2.11.0'
     testImplementation 'org.apache.httpcomponents:httpclient:4.5.14'
-    testImplementation 'org.apache.commons:commons-lang3:3.18.0'
+    testImplementation 'org.apache.commons:commons-lang3'
     testImplementation ('com.googlecode.json-simple:json-simple:1.1.1') {
         exclude group: 'junit', module: 'junit'
     }
-    testImplementation 'com.google.code.gson:gson:2.11.0'
+    testImplementation 'com.google.code.gson:gson'
 
-    testImplementation 'org.junit.platform:junit-platform-suite:1.11.4'
-    testImplementation 'org.junit.platform:junit-platform-console:1.11.4'
+    testImplementation 'org.junit.platform:junit-platform-suite'
+    testImplementation 'org.junit.platform:junit-platform-console'
     testImplementation 'io.cucumber:cucumber-java:7.20.1'
     testImplementation 'io.cucumber:cucumber-junit:7.20.1'
     testImplementation 'io.cucumber:cucumber-spring:7.20.1'
@@ -56,17 +55,17 @@ dependencies {
 
     testImplementation 'io.qameta.allure:allure-cucumber7-jvm:2.29.1'
 
-    testImplementation 'org.assertj:assertj-core:3.26.3'
+    testImplementation 'org.assertj:assertj-core'
 
-    testCompileOnly 'org.projectlombok:lombok:1.18.36'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
 
-    testImplementation "ch.qos.logback:logback-core:1.5.19"
-    testImplementation "ch.qos.logback:logback-classic:1.5.19"
+    testImplementation "ch.qos.logback:logback-core"
+    testImplementation "ch.qos.logback:logback-classic"
 
     testImplementation 'org.apache.activemq:activemq-client:6.1.6'
     testImplementation "org.apache.avro:avro:1.12.0"
-    testImplementation "org.awaitility:awaitility:4.2.2"
+    testImplementation "org.awaitility:awaitility"
     testImplementation 'io.github.classgraph:classgraph:4.8.179'
 
     testImplementation 'org.apache.commons:commons-collections4:4.4'
@@ -77,28 +76,42 @@ tasks.named('test') {
     systemProperty("cucumber.junit-platform.naming-strategy", "long")
 }
 
-tasks.named('cucumber').get().finalizedBy 'allureReport'
-
-tasks.named('cucumber').get().dependsOn 'spotlessCheck'
-
-cucumber {
-    // Use -Pcucumber.features=... if passed, otherwise default
-    if (project.hasProperty("cucumber.features")) {
-        featurePath = project.getProperty("cucumber.features")
-    } else {
-        featurePath = "src/test/resources/features";
+tasks.register('cucumber', JavaExec) {
+    group = 'verification'
+    description = 'Runs Cucumber scenarios against a running Fineract server'
+    dependsOn tasks.named('testClasses'), tasks.named('spotlessCheck')
+    finalizedBy 'allureReport'
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'io.cucumber.core.cli.Main'
+    systemProperties gradle.startParameter.systemPropertiesArgs.findAll { key, value ->
+        !key.startsWith('java.') && !key.startsWith('org.gradle.')
     }
-
-    tags = 'not @Skip'
-    if (project.hasProperty("cucumber.tags")) {
-        tags = [project.getProperty("cucumber.tags")]
+    args '--tags', providers.gradleProperty('cucumber.tags').getOrElse('not @Skip'),
+        '--plugin', 'pretty',
+        '--plugin', 'io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm'
+    if (providers.gradleProperty('cucumber.name').isPresent()) {
+        args '--name', providers.gradleProperty('cucumber.name').get()
     }
-
-    if (project.hasProperty("cucumber.name")) {
-        name = project.getProperty("cucumber.name")
+    def features = providers.gradleProperty('cucumber.features').getOrElse('src/test/resources/features')
+    def featurePaths = []
+    def pathStart = 0
+    for (int index = 0; index < features.length(); index++) {
+        if (features[index] != ':') {
+            continue
+        }
+        def prefix = features.substring(pathStart, index)
+        def scheme = prefix in ['classpath', 'file']
+        def windowsDrive = (prefix ==~ /[A-Za-z]/) && index + 1 < features.length() &&
+            (features[index + 1] in ['\\', '/'])
+        def lineSelector = (features.substring(index + 1) =~ /^\d+(?=:|$)/).find()
+        if (!scheme && !windowsDrive && !lineSelector) {
+            featurePaths.add(prefix)
+            pathStart = index + 1
+        }
     }
-
-    plugin = ['pretty', 'io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm']
+    featurePaths.add(features.substring(pathStart))
+    args featurePaths
 }
 
 allure {

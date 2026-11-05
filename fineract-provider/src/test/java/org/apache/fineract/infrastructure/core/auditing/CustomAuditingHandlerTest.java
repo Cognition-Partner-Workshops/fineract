@@ -19,6 +19,8 @@
 package org.apache.fineract.infrastructure.core.auditing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDate;
@@ -27,6 +29,10 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.apache.fineract.infrastructure.businessdate.domain.BusinessDateType;
 import org.apache.fineract.infrastructure.core.domain.AbstractAuditableCustom;
 import org.apache.fineract.infrastructure.core.domain.AbstractAuditableWithUTCDateTimeCustom;
@@ -37,6 +43,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.mapping.context.PersistentEntities;
 
@@ -116,5 +124,81 @@ public class CustomAuditingHandlerTest {
         assertEquals(now.getDayOfMonth(), targetObject.getCreatedDate().get().getDayOfMonth());
         assertEquals(now.getHour(), targetObject.getCreatedDate().get().getHour());
         assertEquals(now.getMinute(), targetObject.getCreatedDate().get().getMinute());
+    }
+
+    @Test
+    public void reusesAuditingHandler() {
+        DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+        beanFactory.registerSingleton("jpaMappingContext", Mockito.mock(MappingContext.class));
+        beanFactory.registerSingleton("auditorAware", (AuditorAware<Long>) () -> Optional.of(42L));
+        new JpaAuditingHandlerRegistrar().registerBeanDefinitions(null, beanFactory);
+
+        assertSame(beanFactory.getBean("jpaAuditingHandler"), beanFactory.getBean("jpaAuditingHandler"));
+    }
+
+    @Test
+    public void preservesDateProvidersDuringConcurrentAuditing() throws Exception {
+        CustomAuditingHandler handler = new CustomAuditingHandler(PersistentEntities.of(Mockito.mock(MappingContext.class)));
+        CountDownLatch ready = new CountDownLatch(2);
+        handler.setAuditorAware(() -> {
+            ready.countDown();
+            try {
+                assertTrue(ready.await(10, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            return Optional.of(42L);
+        });
+        OffsetDateTime utcNow = OffsetDateTime.parse("2025-03-01T10:00:00Z");
+        LocalDateTime localNow = LocalDateTime.parse("2025-03-02T11:00:00");
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var utc = executor.submit(() -> {
+                try (var dates = Mockito.mockStatic(DateUtils.class)) {
+                    dates.when(DateUtils::getAuditOffsetDateTime).thenReturn(utcNow);
+                    dates.when(DateUtils::getLocalDateTimeOfSystem).thenReturn(localNow);
+                    return handler.markCreated(Mockito.spy(AbstractAuditableWithUTCDateTimeCustom.class));
+                }
+            });
+            var local = executor.submit(() -> {
+                try (var dates = Mockito.mockStatic(DateUtils.class)) {
+                    dates.when(DateUtils::getAuditOffsetDateTime).thenReturn(utcNow);
+                    dates.when(DateUtils::getLocalDateTimeOfSystem).thenReturn(localNow);
+                    return handler.markModified(Mockito.spy(AbstractAuditableCustom.class));
+                }
+            });
+            var utcEntity = utc.get(20, TimeUnit.SECONDS);
+            var localEntity = local.get(20, TimeUnit.SECONDS);
+            assertEquals(utcNow, utcEntity.getCreatedDate().orElseThrow());
+            assertEquals(42L, utcEntity.getCreatedBy().orElseThrow());
+            assertEquals(localNow, localEntity.getLastModifiedDate().orElseThrow());
+            assertEquals(42L, localEntity.getLastModifiedBy().orElseThrow());
+            assertTrue(localEntity.getCreatedDate().isEmpty());
+        }
+    }
+
+    @Test
+    public void preservesAuditingOptionsForBothDateProviders() {
+        CustomAuditingHandler handler = new CustomAuditingHandler(PersistentEntities.of(Mockito.mock(MappingContext.class)));
+        handler.setAuditorAware(() -> Optional.of(42L));
+        handler.setModifyOnCreation(false);
+        handler.setDateTimeForNow(false);
+        var utc = handler.markCreated(Mockito.spy(AbstractAuditableWithUTCDateTimeCustom.class));
+        var local = handler.markCreated(Mockito.spy(AbstractAuditableCustom.class));
+
+        assertEquals(42L, utc.getCreatedBy().orElseThrow());
+        assertEquals(42L, local.getCreatedBy().orElseThrow());
+        assertTrue(utc.getLastModifiedBy().isEmpty());
+        assertTrue(local.getLastModifiedBy().isEmpty());
+        assertTrue(utc.getCreatedDate().isEmpty());
+        assertTrue(local.getCreatedDate().isEmpty());
+    }
+
+    @Test
+    public void rejectsNullSources() {
+        CustomAuditingHandler handler = new CustomAuditingHandler(PersistentEntities.of(Mockito.mock(MappingContext.class)));
+        assertThrows(IllegalArgumentException.class, () -> handler.markCreated(null));
+        assertThrows(IllegalArgumentException.class, () -> handler.markModified(null));
     }
 }
