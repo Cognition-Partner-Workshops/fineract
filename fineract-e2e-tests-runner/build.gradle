@@ -93,7 +93,23 @@ tasks.register('cucumber', JavaExec) {
     if (providers.gradleProperty('cucumber.name').isPresent()) {
         args '--name', providers.gradleProperty('cucumber.name').get()
     }
-    args providers.gradleProperty('cucumber.features').getOrElse('src/test/resources/features').split(':(?!\\d+(?::|$))')
+    def features = providers.gradleProperty('cucumber.features').getOrElse('src/test/resources/features')
+    def featurePaths = []
+    def pathStart = 0
+    for (int index = 0; index < features.length(); index++) {
+        if (features[index] != ':') {
+            continue
+        }
+        def prefix = features.substring(pathStart, index)
+        def scheme = prefix ==~ /[A-Za-z][A-Za-z0-9+.-]*/
+        def lineSelector = (features.substring(index + 1) =~ /^\d+(?=:|$)/).find()
+        if (!scheme && !lineSelector) {
+            featurePaths.add(prefix)
+            pathStart = index + 1
+        }
+    }
+    featurePaths.add(features.substring(pathStart))
+    args featurePaths
 }
 
 allure {
