@@ -40,6 +40,7 @@ import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.service.PlatformEmailSendException;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformPasswordEncoder;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.office.domain.Office;
@@ -53,6 +54,7 @@ import org.apache.fineract.useradministration.domain.AppUser;
 import org.apache.fineract.useradministration.domain.AppUserPreviousPassword;
 import org.apache.fineract.useradministration.domain.AppUserPreviousPasswordRepository;
 import org.apache.fineract.useradministration.domain.AppUserRepository;
+import org.apache.fineract.useradministration.domain.Permission;
 import org.apache.fineract.useradministration.domain.Role;
 import org.apache.fineract.useradministration.domain.RoleRepository;
 import org.apache.fineract.useradministration.domain.UserDomainService;
@@ -83,6 +85,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
     private final AppUserPreviousPasswordRepository appUserPreviewPasswordRepository;
     private final StaffRepositoryWrapper staffRepositoryWrapper;
     private final ClientRepositoryWrapper clientRepositoryWrapper;
+    private final OfficeScopeValidator officeScopeValidator;
 
     @Override
     @Transactional
@@ -95,6 +98,7 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
 
             final String officeIdParamName = "officeId";
             final Long officeId = command.longValueOfParameterNamed(officeIdParamName);
+            this.officeScopeValidator.validateOffice(officeId);
 
             final Office userOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(officeId);
 
@@ -194,6 +198,10 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
             this.fromApiJsonDeserializer.validateForUpdate(command.json(), this.context.authenticatedUser());
 
             final AppUser userToUpdate = this.appUserRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+            this.officeScopeValidator.validateOffice(userToUpdate.getOffice().getId());
+            if (command.hasParameter("officeId")) {
+                this.officeScopeValidator.validateOffice(command.longValueOfParameterNamed("officeId"));
+            }
 
             final AppUserPreviousPassword currentPasswordToSaveAsPreview = getCurrentPasswordToSaveAsPreview(userToUpdate, command);
 
@@ -291,6 +299,9 @@ public class AppUserWritePlatformServiceJpaRepositoryImpl implements AppUserWrit
             for (final String roleId : rolesArray) {
                 final Long id = Long.valueOf(roleId);
                 final Role role = this.roleRepository.findById(id).orElseThrow(() -> new RoleNotFoundException(id));
+                for (final Permission permission : role.getPermissions()) {
+                    this.context.authenticatedUser().validateHasPermissionTo("assign role permissions", List.of(permission.getCode()));
+                }
                 allRoles.add(role);
             }
         }
