@@ -143,10 +143,12 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
         sqlBuilder.append("select ");
         sqlBuilder.append(depositAccountMapper.schema());
         sqlBuilder.append(" where sa.deposit_type_enum = ? ");
+        sqlBuilder.append(SavingsAccountOfficeScope.sqlFilter("sa.id"));
         // always append at the end of a sql statement
         sqlBuilder.append(paginationParameters.paginationSql());
 
-        return jdbcTemplate.query(sqlBuilder.toString(), depositAccountMapper, new Object[] { depositAccountType.getValue() }); // NOSONAR
+        return jdbcTemplate.query(sqlBuilder.toString(), depositAccountMapper, // NOSONAR
+                new Object[] { depositAccountType.getValue(), SavingsAccountOfficeScope.hierarchySearchString(this.context) });
     }
 
     @Override
@@ -165,9 +167,11 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");
         sqlBuilder.append(depositAccountMapper.schema());
         sqlBuilder.append(" where sa.deposit_type_enum = ? ");
+        sqlBuilder.append(SavingsAccountOfficeScope.sqlFilter("sa.id"));
         sqlBuilder.append(paginationParameters.paginationSql());
 
-        return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(), new Object[] { depositAccountType.getValue() },
+        return this.paginationHelper.fetchPage(this.jdbcTemplate, sqlBuilder.toString(),
+                new Object[] { depositAccountType.getValue(), SavingsAccountOfficeScope.hierarchySearchString(this.context) },
                 depositAccountMapper);
     }
 
@@ -209,8 +213,10 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
             sqlBuilder.append("select ");
             sqlBuilder.append(depositAccountMapper.schema());
             sqlBuilder.append(" where sa.id = ? and sa.deposit_type_enum = ? ");
+            sqlBuilder.append(SavingsAccountOfficeScope.sqlFilter("sa.id"));
 
-            return this.jdbcTemplate.queryForObject(sqlBuilder.toString(), depositAccountMapper, accountId, depositAccountType.getValue());
+            return this.jdbcTemplate.queryForObject(sqlBuilder.toString(), depositAccountMapper, accountId, depositAccountType.getValue(),
+                    SavingsAccountOfficeScope.hierarchySearchString(this.context));
 
         } catch (final EmptyResultDataAccessException e) {
             throw new DepositAccountNotFoundException(depositAccountType, accountId, e);
@@ -231,9 +237,10 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
             sqlBuilder.append("select ");
             sqlBuilder.append(depositAccountMapper.schema());
             sqlBuilder.append(" where sa.id = ? and sa.deposit_type_enum = ? ");
+            sqlBuilder.append(SavingsAccountOfficeScope.sqlFilter("sa.id"));
 
             DepositAccountData account = this.jdbcTemplate.queryForObject(sqlBuilder.toString(), depositAccountMapper, accountId,
-                    depositAccountType.getValue());
+                    depositAccountType.getValue(), SavingsAccountOfficeScope.hierarchySearchString(this.context));
             Collection<EnumOptionData> onAccountClosureOptions = SavingsEnumerations
                     .depositAccountOnClosureType(DepositAccountOnClosureType.values());
             final Collection<PaymentTypeData> paymentTypeOptions = this.paymentTypeReadPlatformService.retrieveAllPaymentTypes();
@@ -279,10 +286,11 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
     public Collection<SavingsAccountTransactionData> retrieveAllTransactions(final DepositAccountType depositAccountType,
             final Long accountId) {
 
-        final String sql = "select " + this.transactionsMapper.schema()
-                + " where sa.id = ? and sa.deposit_type_enum = ? order by tr.transaction_date DESC, tr.id DESC";
+        final String sql = "select " + this.transactionsMapper.schema() + " where sa.id = ? and sa.deposit_type_enum = ? "
+                + SavingsAccountOfficeScope.sqlFilter("sa.id") + " order by tr.transaction_date DESC, tr.id DESC";
 
-        return this.jdbcTemplate.query(sql, this.transactionsMapper, new Object[] { accountId, depositAccountType.getValue() }); // NOSONAR
+        return this.jdbcTemplate.query(sql, this.transactionsMapper, // NOSONAR
+                new Object[] { accountId, depositAccountType.getValue(), SavingsAccountOfficeScope.hierarchySearchString(this.context) });
     }
 
     @Override
@@ -457,10 +465,11 @@ public class DepositAccountReadPlatformServiceImpl implements DepositAccountRead
     public SavingsAccountTransactionData retrieveRecurringAccountDepositTransactionTemplate(final Long accountId) {
 
         try {
-            final String sql = "select " + this.rdTransactionTemplateMapper.schema()
-                    + " where sa.id = ? and sa.deposit_type_enum = ? order by mss.installment limit 1";
+            final String sql = "select " + this.rdTransactionTemplateMapper.schema() + " where sa.id = ? and sa.deposit_type_enum = ? "
+                    + SavingsAccountOfficeScope.sqlFilter("sa.id") + " order by mss.installment limit 1";
             return this.jdbcTemplate.queryForObject(sql, this.rdTransactionTemplateMapper, // NOSONAR
-                    accountId, accountId, DepositAccountType.RECURRING_DEPOSIT.getValue());
+                    accountId, accountId, DepositAccountType.RECURRING_DEPOSIT.getValue(),
+                    SavingsAccountOfficeScope.hierarchySearchString(this.context));
         } catch (final EmptyResultDataAccessException e) {
             throw new DepositAccountNotFoundException(DepositAccountType.RECURRING_DEPOSIT, accountId, e);
         }

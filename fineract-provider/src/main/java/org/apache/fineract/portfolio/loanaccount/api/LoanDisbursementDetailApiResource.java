@@ -72,6 +72,8 @@ public class LoanDisbursementDetailApiResource {
     public CommandProcessingResult updateDisbursementDate(@PathParam("loanId") final Long loanId,
             @PathParam("disbursementId") final Long disbursementId, final String apiRequestBodyAsJson) {
 
+        this.loanReadPlatformService.retrieveOne(loanId);
+
         final CommandWrapper commandRequest = new CommandWrapperBuilder().updateDisbusementDate(loanId, disbursementId)
                 .withJson(apiRequestBodyAsJson).build();
 
@@ -85,6 +87,8 @@ public class LoanDisbursementDetailApiResource {
     @RequestBody(required = true, content = @Content(schema = @Schema(implementation = LoanDisbursementDetailApiResourceSwagger.PostAddAndDeleteDisbursementDetailRequest.class)))
     public CommandProcessingResult addAndDeleteDisbursementDetail(@PathParam("loanId") final Long loanId,
             @Parameter(hidden = true) final String apiRequestBodyAsJson) {
+
+        this.loanReadPlatformService.retrieveOne(loanId);
 
         CommandWrapper commandRequest = new CommandWrapperBuilder().addAndDeleteDisbursementDetails(loanId).withJson(apiRequestBodyAsJson)
                 .build();
@@ -100,6 +104,8 @@ public class LoanDisbursementDetailApiResource {
             @Context final UriInfo uriInfo) {
 
         this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSIONS);
+
+        this.loanReadPlatformService.retrieveOne(loanId);
 
         final DisbursementData disbursementData = this.loanReadPlatformService.retrieveLoanDisbursementDetail(loanId, disbursementId);
 

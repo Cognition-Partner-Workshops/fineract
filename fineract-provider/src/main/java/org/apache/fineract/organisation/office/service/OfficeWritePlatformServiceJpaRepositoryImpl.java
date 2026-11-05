@@ -38,6 +38,7 @@ import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
 import org.apache.fineract.organisation.office.domain.OfficeTransaction;
 import org.apache.fineract.organisation.office.domain.OfficeTransactionRepository;
+import org.apache.fineract.organisation.office.exception.OfficeTransactionNotFoundException;
 import org.apache.fineract.organisation.office.serialization.OfficeCommandFromApiJsonDeserializer;
 import org.apache.fineract.organisation.office.serialization.OfficeTransactionCommandFromApiJsonDeserializer;
 import org.apache.fineract.useradministration.domain.AppUser;
@@ -169,6 +170,8 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
             officeId = toOffice.getId();
         }
 
+        validateUserAccessToOfficeTransaction(fromOffice, toOffice);
+
         final String currencyCode = command.stringValueOfParameterNamed("currencyCode");
         final ApplicationCurrency appCurrency = this.applicationCurrencyRepository.findOneWithNotFoundDetection(currencyCode);
 
@@ -193,7 +196,11 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
 
         this.context.authenticatedUser();
 
-        this.officeTransactionRepository.deleteById(transactionId);
+        final OfficeTransaction officeTransaction = this.officeTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new OfficeTransactionNotFoundException(transactionId));
+        validateUserAccessToOfficeTransaction(officeTransaction.getFrom(), officeTransaction.getTo());
+
+        this.officeTransactionRepository.delete(officeTransaction);
 
         return new CommandProcessingResultBuilder() //
                 .withCommandId(command.commandId()) //
@@ -223,6 +230,17 @@ public class OfficeWritePlatformServiceJpaRepositoryImpl implements OfficeWriteP
      * used to restrict modifying operations to office that are either the users office or lower (child) in the office
      * hierarchy
      */
+    /*
+     * The originating office (or the receiving office for transfers with no source office) must be within the user's
+     * office hierarchy.
+     */
+    private void validateUserAccessToOfficeTransaction(final Office fromOffice, final Office toOffice) {
+        final Office owningOffice = fromOffice != null ? fromOffice : toOffice;
+        if (owningOffice != null) {
+            this.context.validateAccessRights(owningOffice.getHierarchy());
+        }
+    }
+
     private Office validateUserPriviledgeOnOfficeAndRetrieve(final AppUser currentUser, final Long officeId) {
 
         final Long userOfficeId = currentUser.getOffice().getId();

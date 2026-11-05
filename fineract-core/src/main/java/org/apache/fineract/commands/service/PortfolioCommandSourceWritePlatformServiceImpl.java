@@ -33,7 +33,10 @@ import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.jobs.service.SchedulerJobRunnerReadService;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
+import org.apache.fineract.organisation.office.domain.Office;
+import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,12 +46,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class PortfolioCommandSourceWritePlatformServiceImpl implements PortfolioCommandSourceWritePlatformService {
 
+    private static final String HEAD_OFFICE_HIERARCHY = ".";
+
     private final PlatformSecurityContext context;
     private final CommandSourceRepository commandSourceRepository;
     private final FromJsonHelper fromApiJsonHelper;
     private final CommandProcessingService processAndLogCommandService;
     private final SchedulerJobRunnerReadService schedulerJobRunnerReadService;
     private final ConfigurationDomainService configurationService;
+    private final OfficeRepositoryWrapper officeRepositoryWrapper;
 
     @Override
     public CommandProcessingResult logCommandSource(final CommandWrapper wrapper) {
@@ -132,7 +138,20 @@ public class PortfolioCommandSourceWritePlatformServiceImpl implements Portfolio
                 throw new UnsupportedCommandException(permissionCode, "Can not be checked by the same user.");
             }
         }
+        validateCheckerOfficeAccess(appUser, commandSource);
         return commandSource;
+    }
+
+    private void validateCheckerOfficeAccess(final AppUser checker, final CommandSource commandSource) {
+        final Long officeId = commandSource.getOfficeId();
+        if (officeId == null) {
+            if (!HEAD_OFFICE_HIERARCHY.equals(checker.getOffice().getHierarchy())) {
+                throw new NoAuthorizationException("Only head office users can check entries that are not linked to an office.");
+            }
+            return;
+        }
+        final Office office = this.officeRepositoryWrapper.findOneWithNotFoundDetection(officeId);
+        this.context.validateAccessRights(office.getHierarchy());
     }
 
     private void validateIsUpdateAllowed() {

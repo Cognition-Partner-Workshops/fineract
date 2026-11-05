@@ -1124,6 +1124,12 @@ public class DepositAccountWritePlatformServiceJpaRepositoryImpl implements Depo
                 .build();
     }
 
+    private void validateOfficeAccess(final SavingsAccount account) {
+        if (account.office() != null) {
+            this.context.validateAccessRights(account.office().getHierarchy());
+        }
+    }
+
     @Transactional
     @Override
     public CommandProcessingResult waiveCharge(final Long savingsAccountId, final Long savingsAccountChargeId,
@@ -1136,6 +1142,7 @@ public class DepositAccountWritePlatformServiceJpaRepositoryImpl implements Depo
 
         final SavingsAccountCharge savingsAccountCharge = this.savingsAccountChargeRepository
                 .findOneWithNotFoundDetection(savingsAccountChargeId, savingsAccountId);
+        validateOfficeAccess(savingsAccountCharge.savingsAccount());
 
         // Get Savings account from savings charge
         final SavingsAccount account = savingsAccountCharge.savingsAccount();
@@ -1191,6 +1198,7 @@ public class DepositAccountWritePlatformServiceJpaRepositoryImpl implements Depo
         checkClientOrGroupActive(savingsAccount);
         final SavingsAccountCharge savingsAccountCharge = this.savingsAccountChargeRepository
                 .findOneWithNotFoundDetection(savingsAccountChargeId, savingsAccountId);
+        validateOfficeAccess(savingsAccountCharge.savingsAccount());
 
         savingsAccount.removeCharge(savingsAccountCharge);
         this.savingAccountRepositoryWrapper.saveAndFlush(savingsAccount);
@@ -1218,6 +1226,7 @@ public class DepositAccountWritePlatformServiceJpaRepositoryImpl implements Depo
 
         final SavingsAccountCharge savingsAccountCharge = this.savingsAccountChargeRepository
                 .findOneWithNotFoundDetection(savingsAccountChargeId, savingsAccountId);
+        validateOfficeAccess(savingsAccountCharge.savingsAccount());
 
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)
