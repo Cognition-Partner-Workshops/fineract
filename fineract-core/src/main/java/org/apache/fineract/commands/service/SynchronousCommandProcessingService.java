@@ -111,17 +111,21 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
 
             CommandSource commandSource = null;
             String idempotencyKey;
+            boolean enforceOwner;
             if (isRetry) {
                 commandSource = commandSourceService.getCommandSource(commandId);
                 idempotencyKey = commandSource.getIdempotencyKey();
+                enforceOwner = false;
             } else if ((commandId = command.commandId()) != null) { // action on the command itself
                 commandSource = commandSourceService.getCommandSource(commandId);
                 idempotencyKey = commandSource.getIdempotencyKey();
+                enforceOwner = false;
             } else {
                 idempotencyKey = idempotencyKeyResolver.resolve(wrapper);
+                enforceOwner = true;
             }
             AppUser user = context.authenticatedUser(wrapper);
-            exceptionWhenTheRequestAlreadyProcessed(wrapper, idempotencyKey, isRetry, user);
+            exceptionWhenTheRequestAlreadyProcessed(wrapper, idempotencyKey, isRetry, user, enforceOwner);
             if (commandSource == null) {
                 if (isEnclosingTransaction) {
                     commandSource = commandSourceService.getInitialCommandSource(wrapper, command, user, idempotencyKey);
@@ -219,12 +223,13 @@ public class SynchronousCommandProcessingService implements CommandProcessingSer
         }
     }
 
-    private void exceptionWhenTheRequestAlreadyProcessed(CommandWrapper wrapper, String idempotencyKey, boolean retry, AppUser user) {
+    private void exceptionWhenTheRequestAlreadyProcessed(CommandWrapper wrapper, String idempotencyKey, boolean retry, AppUser user,
+            boolean enforceOwner) {
         CommandSource command = commandSourceService.findCommandSource(wrapper, idempotencyKey);
         if (command == null) {
             return;
         }
-        if (command.getMaker() == null || !Objects.equals(command.getMaker().getId(), user.getId())) {
+        if (enforceOwner && (command.getMaker() == null || !Objects.equals(command.getMaker().getId(), user.getId()))) {
             throw new IdempotentCommandProcessConflictException(wrapper, idempotencyKey);
         }
         CommandProcessingResultType status = CommandProcessingResultType.fromInt(command.getStatus());
