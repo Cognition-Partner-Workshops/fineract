@@ -420,6 +420,7 @@ public class FixedDepositAccountsApiResource {
             final CommandWrapper commandRequest = builder.prematureCloseFixedDepositAccount(accountId).build();
             result = this.commandsSourceWritePlatformService.logCommandSource(commandRequest);
         } else if (is(commandParam, "calculatePrematureAmount")) {
+            this.context.authenticatedUser().validateHasReadPermission(DepositsApiConstants.FIXED_DEPOSIT_ACCOUNT_RESOURCE_NAME);
             final JsonElement parsedQuery = this.fromJsonHelper.parse(apiRequestBodyAsJson);
             final JsonQuery query = JsonQuery.from(apiRequestBodyAsJson, parsedQuery, this.fromJsonHelper);
             final DepositAccountData account = this.accountPreMatureCalculationPlatformService.calculatePreMatureAmount(accountId, query,

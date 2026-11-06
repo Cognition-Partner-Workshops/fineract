@@ -20,6 +20,7 @@ package org.apache.fineract.integrationtests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.gson.Gson;
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.builder.ResponseSpecBuilder;
 import io.restassured.http.ContentType;
@@ -126,6 +127,89 @@ public class GroupLoanIntegrationTest {
     }
 
     @Test
+    public void rejectsGlimApprovalForLoanOutsideParentAccount() {
+        this.loanTransactionHelper = new LoanTransactionHelper(this.requestSpec, this.responseSpec);
+        final Integer loanProductID = createLoanProduct();
+
+        final Integer firstClientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        Integer firstGroupId = GroupHelper.createGroup(this.requestSpec, this.responseSpec, true);
+        firstGroupId = GroupHelper.associateClient(this.requestSpec, this.responseSpec, firstGroupId.toString(), firstClientId.toString());
+        final HashMap<String, Integer> firstGlim = applyForGlimApplication(firstClientId, firstGroupId, loanProductID);
+
+        final Integer secondClientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        Integer secondGroupId = GroupHelper.createGroup(this.requestSpec, this.responseSpec, true);
+        secondGroupId = GroupHelper.associateClient(this.requestSpec, this.responseSpec, secondGroupId.toString(),
+                secondClientId.toString());
+        final HashMap<String, Integer> secondGlim = applyForGlimApplication(secondClientId, secondGroupId, loanProductID);
+
+        final Integer firstGlimId = firstGlim.get("glimId");
+        final Integer firstLoanId = firstGlim.get("loanId");
+        final Integer secondLoanId = secondGlim.get("loanId");
+        final String approvedOnDate = "20 September 2011";
+
+        final HashMap approvedLoan = this.loanTransactionHelper.approveGlimAccount(this.requestSpec, this.responseSpec,
+                List.of(approvalFormData(firstLoanId, approvedOnDate)), firstGlimId);
+        LoanStatusChecker.verifyLoanIsApproved(approvedLoan);
+
+        final String approvalForm = new LoanApplicationTestBuilder()
+                .withApprovalFormData(List.of(approvalFormData(secondLoanId, approvedOnDate))).build();
+        final io.restassured.response.Response response = io.restassured.RestAssured.given().spec(this.requestSpec)
+                .contentType(ContentType.JSON).body(approvalForm)
+                .post("/fineract-provider/api/v1/loans/glimAccount/" + firstGlimId + "?command=approve&" + Utils.TENANT_IDENTIFIER);
+
+        Assertions.assertTrue(response.statusCode() >= 400 && response.statusCode() < 500,
+                "Expected approval of a loan outside the GLIM account to be rejected, got " + response.statusCode() + ": "
+                        + response.asString());
+    }
+
+    @Test
+    public void rejectsGlimRepaymentForLoanOutsideParentAccount() {
+        this.loanTransactionHelper = new LoanTransactionHelper(this.requestSpec, this.responseSpec);
+        final Integer loanProductID = createLoanProduct();
+
+        final Integer firstClientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        Integer firstGroupId = GroupHelper.createGroup(this.requestSpec, this.responseSpec, true);
+        firstGroupId = GroupHelper.associateClient(this.requestSpec, this.responseSpec, firstGroupId.toString(), firstClientId.toString());
+        final HashMap<String, Integer> firstGlim = applyForGlimApplication(firstClientId, firstGroupId, loanProductID);
+
+        final Integer secondClientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        Integer secondGroupId = GroupHelper.createGroup(this.requestSpec, this.responseSpec, true);
+        secondGroupId = GroupHelper.associateClient(this.requestSpec, this.responseSpec, secondGroupId.toString(),
+                secondClientId.toString());
+        final HashMap<String, Integer> secondGlim = applyForGlimApplication(secondClientId, secondGroupId, loanProductID);
+
+        final Integer firstGlimId = firstGlim.get("glimId");
+        final Integer firstLoanId = firstGlim.get("loanId");
+        final Integer secondGlimId = secondGlim.get("glimId");
+        final Integer secondLoanId = secondGlim.get("loanId");
+        final String operationDate = "20 September 2011";
+
+        HashMap firstApproval = this.loanTransactionHelper.approveGlimAccount(this.requestSpec, this.responseSpec,
+                List.of(approvalFormData(firstLoanId, operationDate)), firstGlimId);
+        LoanStatusChecker.verifyLoanIsApproved(firstApproval);
+        HashMap secondApproval = this.loanTransactionHelper.approveGlimAccount(this.requestSpec, this.responseSpec,
+                List.of(approvalFormData(secondLoanId, operationDate)), secondGlimId);
+        LoanStatusChecker.verifyLoanIsApproved(secondApproval);
+
+        HashMap firstDisbursement = this.loanTransactionHelper.disburseGlimAccount("25 September 2011", firstGlimId);
+        LoanStatusChecker.verifyLoanIsActive(firstDisbursement);
+        HashMap secondDisbursement = this.loanTransactionHelper.disburseGlimAccount("25 September 2011", secondGlimId);
+        LoanStatusChecker.verifyLoanIsActive(secondDisbursement);
+
+        final String repaymentUrl = "/fineract-provider/api/v1/loans/glimAccount/" + firstGlimId + "?command=glimrepayment&"
+                + Utils.TENANT_IDENTIFIER;
+        final io.restassured.response.Response ownLoanRepayment = io.restassured.RestAssured.given().spec(this.requestSpec)
+                .contentType(ContentType.JSON).body(glimRepaymentForm(firstLoanId, "26 September 2011")).post(repaymentUrl);
+        Assertions.assertEquals(200, ownLoanRepayment.statusCode(), ownLoanRepayment.asString());
+
+        final io.restassured.response.Response foreignLoanRepayment = io.restassured.RestAssured.given().spec(this.requestSpec)
+                .contentType(ContentType.JSON).body(glimRepaymentForm(secondLoanId, "26 September 2011")).post(repaymentUrl);
+        Assertions.assertTrue(foreignLoanRepayment.statusCode() >= 400 && foreignLoanRepayment.statusCode() < 500,
+                "Expected repayment of a loan outside the GLIM account to be rejected, got " + foreignLoanRepayment.statusCode() + ": "
+                        + foreignLoanRepayment.asString());
+    }
+
+    @Test
     public void getGlimAccountByGroupId() {
         this.loanTransactionHelper = new LoanTransactionHelper(this.requestSpec, this.responseSpec);
 
@@ -191,6 +275,20 @@ public class GroupLoanIntegrationTest {
         map.put("dateFormat", CommonConstants.DATE_FORMAT);
         map.put("locale", "en");
         return map;
+    }
+
+    private String glimRepaymentForm(final Integer loanId, final String transactionDate) {
+        Map<String, Object> repayment = new HashMap<>();
+        repayment.put("loanId", loanId);
+        repayment.put("transactionDate", transactionDate);
+        repayment.put("transactionAmount", 100.0);
+        repayment.put("dateFormat", CommonConstants.DATE_FORMAT);
+        repayment.put("locale", "en");
+        Map<String, Object> form = new HashMap<>();
+        form.put("formDataArray", List.of(repayment));
+        form.put("dateFormat", CommonConstants.DATE_FORMAT);
+        form.put("locale", "en");
+        return new Gson().toJson(form);
     }
 
     private Integer createLoanProduct() {

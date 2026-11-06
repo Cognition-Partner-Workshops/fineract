@@ -19,12 +19,15 @@
 package org.apache.fineract.portfolio.self.savings.data;
 
 import com.google.gson.JsonElement;
+import com.google.gson.reflect.TypeToken;
 import jakarta.ws.rs.core.UriInfo;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.core.api.ApiParameterHelper;
@@ -50,6 +53,15 @@ public class SelfSavingsDataValidator {
 
     private static final Set<String> allowedAssociationParameters = new HashSet<>(
             Arrays.asList(SavingsApiConstants.transactions, SavingsApiConstants.charges));
+
+    private static final Set<String> customerSettableApplicationParameters = Set.of(SelfSavingsAccountConstants.clientIdParameterName,
+            SelfSavingsAccountConstants.productIdParameterName, SavingsApiConstants.submittedOnDateParamName,
+            SavingsApiConstants.localeParamName, SavingsApiConstants.dateFormatParamName,
+            SavingsApiConstants.nominalAnnualInterestRateParamName, SavingsApiConstants.interestCompoundingPeriodTypeParamName,
+            SavingsApiConstants.interestPostingPeriodTypeParamName, SavingsApiConstants.interestCalculationTypeParamName,
+            SavingsApiConstants.interestCalculationDaysInYearTypeParamName, SavingsApiConstants.minRequiredOpeningBalanceParamName,
+            SavingsApiConstants.lockinPeriodFrequencyParamName, SavingsApiConstants.lockinPeriodFrequencyTypeParamName,
+            SavingsApiConstants.withdrawalFeeForTransfersParamName, SavingsApiConstants.minRequiredBalanceParamName);
 
     public void validateRetrieveSavings(final UriInfo uriInfo) {
         List<String> unsupportedParams = new ArrayList<>();
@@ -96,6 +108,9 @@ public class SelfSavingsDataValidator {
         if (StringUtils.isBlank(json)) {
             throw new InvalidJsonException();
         }
+
+        final Type typeOfMap = new TypeToken<Map<String, Object>>() {}.getType();
+        this.fromApiJsonHelper.checkForUnsupportedParameters(typeOfMap, json, customerSettableApplicationParameters);
 
         final List<ApiParameterError> dataValidationErrors = new ArrayList<>();
         final DataValidatorBuilder baseDataValidator = new DataValidatorBuilder(dataValidationErrors)

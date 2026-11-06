@@ -46,6 +46,7 @@ import org.apache.fineract.infrastructure.core.api.ApiRequestParameterHelper;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.serialization.ApiRequestJsonSerializationSettings;
 import org.apache.fineract.infrastructure.core.serialization.DefaultToApiJsonSerializer;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.account.api.AccountTransfersApiResource;
 import org.apache.fineract.portfolio.account.data.request.AccountTransferRequest;
@@ -55,6 +56,7 @@ import org.apache.fineract.portfolio.self.account.data.SelfAccountTransferData;
 import org.apache.fineract.portfolio.self.account.data.SelfAccountTransferDataValidator;
 import org.apache.fineract.portfolio.self.account.exception.BeneficiaryTransferLimitExceededException;
 import org.apache.fineract.portfolio.self.account.exception.DailyTPTTransactionAmountLimitExceededException;
+import org.apache.fineract.portfolio.self.account.exception.SelfTPTTransferDateMustBeBusinessDateException;
 import org.apache.fineract.portfolio.self.account.service.SelfAccountTransferReadService;
 import org.apache.fineract.portfolio.self.account.service.SelfBeneficiariesTPTReadPlatformService;
 import org.apache.fineract.portfolio.self.config.SelfServiceModuleIsEnabledCondition;
@@ -115,6 +117,10 @@ public class SelfAccountTransferApiResource {
         final String apiRequestBodyAsJson = toApiJsonSerializer.serialize(accountTransferRequest);
         Map<String, Object> params = this.dataValidator.validateCreate(type, apiRequestBodyAsJson);
         if (type.equals("tpt")) {
+            LocalDate transactionDate = (LocalDate) params.get("transactionDate");
+            if (!DateUtils.getBusinessLocalDate().equals(transactionDate)) {
+                throw new SelfTPTTransferDateMustBeBusinessDateException();
+            }
             checkForLimits(params);
         }
         return this.accountTransfersApiResource.create(accountTransferRequest);
@@ -123,7 +129,6 @@ public class SelfAccountTransferApiResource {
     private void checkForLimits(Map<String, Object> params) {
         SelfAccountTemplateData fromAccount = (SelfAccountTemplateData) params.get("fromAccount");
         SelfAccountTemplateData toAccount = (SelfAccountTemplateData) params.get("toAccount");
-        LocalDate transactionDate = (LocalDate) params.get("transactionDate");
         BigDecimal transactionAmount = (BigDecimal) params.get("transactionAmount");
 
         AppUser user = this.context.authenticatedUser();
@@ -138,14 +143,14 @@ public class SelfAccountTransferApiResource {
         if (this.configurationDomainService.isDailyTPTLimitEnabled()) {
             Long dailyTPTLimit = this.configurationDomainService.getDailyTPTLimit();
             if (dailyTPTLimit != null && dailyTPTLimit > 0) {
-                BigDecimal dailyTPTLimitBD = new BigDecimal(dailyTPTLimit);
-                BigDecimal totTransactionAmount = this.accountTransfersReadPlatformService
-                        .getTotalTransactionAmount(fromAccount.getAccountId(), fromAccount.getAccountType(), transactionDate);
-                if (totTransactionAmount != null && totTransactionAmount.compareTo(BigDecimal.ZERO) > 0) {
-                    if (dailyTPTLimitBD.compareTo(totTransactionAmount) <= 0
-                            || dailyTPTLimitBD.compareTo(totTransactionAmount.add(transactionAmount)) < 0) {
-                        throw new DailyTPTTransactionAmountLimitExceededException(fromAccount.getAccountId(), fromAccount.getAccountType());
-                    }
+                BigDecimal dailyTPTLimitBD = BigDecimal.valueOf(dailyTPTLimit);
+                BigDecimal totTransactionAmount = this.accountTransfersReadPlatformService.getTotalTransactionAmount(
+                        fromAccount.getAccountId(), fromAccount.getAccountType(), DateUtils.getBusinessLocalDate());
+                if (totTransactionAmount == null) {
+                    totTransactionAmount = BigDecimal.ZERO;
+                }
+                if (totTransactionAmount.add(transactionAmount).compareTo(dailyTPTLimitBD) > 0) {
+                    throw new DailyTPTTransactionAmountLimitExceededException(fromAccount.getAccountId(), fromAccount.getAccountType());
                 }
             }
         }

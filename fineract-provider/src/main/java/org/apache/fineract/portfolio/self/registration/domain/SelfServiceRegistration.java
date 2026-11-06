@@ -24,6 +24,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import org.apache.fineract.infrastructure.core.domain.AbstractPersistableCustom;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.portfolio.client.domain.Client;
@@ -31,6 +32,8 @@ import org.apache.fineract.portfolio.client.domain.Client;
 @Entity
 @Table(name = "request_audit_table")
 public class SelfServiceRegistration extends AbstractPersistableCustom<Long> {
+
+    private static final int MAX_AUTHENTICATION_TOKEN_ATTEMPTS = 5;
 
     @ManyToOne
     @JoinColumn(name = "client_id", nullable = false)
@@ -54,6 +57,12 @@ public class SelfServiceRegistration extends AbstractPersistableCustom<Long> {
     @Column(name = "authentication_token", length = 100, nullable = true)
     private String authenticationToken;
 
+    @Column(name = "authentication_token_attempts", nullable = false)
+    private int authenticationTokenAttempts;
+
+    @Column(name = "authentication_token_expires_at")
+    private LocalDateTime authenticationTokenExpiresAt;
+
     @Column(name = "username", length = 100, nullable = false)
     private String username;
 
@@ -74,6 +83,8 @@ public class SelfServiceRegistration extends AbstractPersistableCustom<Long> {
         this.mobileNumber = mobileNumber;
         this.email = email;
         this.authenticationToken = authenticationToken;
+        this.authenticationTokenAttempts = 0;
+        this.authenticationTokenExpiresAt = DateUtils.getLocalDateTimeOfSystem().plus(15, ChronoUnit.MINUTES);
         this.username = username;
         this.password = password;
         this.createdDate = DateUtils.getLocalDateTimeOfSystem();
@@ -108,6 +119,20 @@ public class SelfServiceRegistration extends AbstractPersistableCustom<Long> {
 
     public String getAuthenticationToken() {
         return this.authenticationToken;
+    }
+
+    public boolean isAuthenticationTokenExpired(final LocalDateTime now) {
+        return this.authenticationTokenExpiresAt == null || !this.authenticationTokenExpiresAt.isAfter(now);
+    }
+
+    public void recordFailedAuthenticationTokenAttempt() {
+        if (this.authenticationToken != null && ++this.authenticationTokenAttempts >= MAX_AUTHENTICATION_TOKEN_ATTEMPTS) {
+            this.authenticationToken = null;
+        }
+    }
+
+    public void invalidateAuthenticationToken() {
+        this.authenticationToken = null;
     }
 
     public LocalDateTime getCreatedDate() {

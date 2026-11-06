@@ -30,7 +30,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.Collection;
-import org.apache.commons.io.IOUtils;
+import java.util.Locale;
 import org.apache.fineract.infrastructure.bulkimport.data.BulkImportEvent;
 import org.apache.fineract.infrastructure.bulkimport.data.GlobalEntityType;
 import org.apache.fineract.infrastructure.bulkimport.data.ImportData;
@@ -41,6 +41,7 @@ import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.apache.fineract.infrastructure.documentmanagement.contentrepository.ContentRepository;
 import org.apache.fineract.infrastructure.documentmanagement.data.DocumentData;
 import org.apache.fineract.infrastructure.documentmanagement.domain.Document;
 import org.apache.fineract.infrastructure.documentmanagement.domain.DocumentRepository;
@@ -87,97 +88,77 @@ public class BulkImportWorkbookServiceImpl implements BulkImportWorkbookService 
     public Long importWorkbook(String entity, InputStream inputStream, FormDataContentDisposition fileDetail, final String locale,
             final String dateFormat) {
         try {
-            if (entity != null && inputStream != null && fileDetail != null && locale != null && dateFormat != null) {
-                final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                IOUtils.copy(inputStream, baos);
-                final byte[] bytes = baos.toByteArray();
-                InputStream clonedInputStream = new ByteArrayInputStream(bytes);
-                final BufferedInputStream bis = new BufferedInputStream(new ByteArrayInputStream(bytes));
-                final Tika tika = new Tika();
-                final TikaInputStream tikaInputStream = TikaInputStream.get(bis);
-                final String fileType = tika.detect(tikaInputStream);
-                if (!fileType.contains("msoffice") && !fileType.contains("application/vnd.ms-excel")) {
-                    // We had a problem where we tried to upload the downloaded
-                    // file from the import options, it was somehow changed the
-                    // extension we use this fix.
-                    throw new GeneralPlatformDomainRuleException("error.msg.invalid.file.extension",
-                            "Uploaded file extension is not recognized.");
-
-                }
-                Workbook workbook = new HSSFWorkbook(clonedInputStream);
-                GlobalEntityType entityType = null;
-                int primaryColumn = 0;
-                if (entity.trim().equalsIgnoreCase(GlobalEntityType.CLIENTS_PERSON.toString())) {
-                    entityType = GlobalEntityType.CLIENTS_PERSON;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.CLIENTS_ENTITY.toString())) {
-                    entityType = GlobalEntityType.CLIENTS_ENTITY;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.CENTERS.toString())) {
-                    entityType = GlobalEntityType.CENTERS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.GROUPS.toString())) {
-                    entityType = GlobalEntityType.GROUPS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.LOANS.toString())) {
-                    entityType = GlobalEntityType.LOANS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.LOAN_TRANSACTIONS.toString())) {
-                    entityType = GlobalEntityType.LOAN_TRANSACTIONS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.GUARANTORS.toString())) {
-                    entityType = GlobalEntityType.GUARANTORS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.OFFICES.toString())) {
-                    entityType = GlobalEntityType.OFFICES;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.CHART_OF_ACCOUNTS.toString())) {
-                    entityType = GlobalEntityType.CHART_OF_ACCOUNTS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.GL_JOURNAL_ENTRIES.toString())) {
-                    entityType = GlobalEntityType.GL_JOURNAL_ENTRIES;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.STAFF.toString())) {
-                    entityType = GlobalEntityType.STAFF;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.SHARE_ACCOUNTS.toString())) {
-                    entityType = GlobalEntityType.SHARE_ACCOUNTS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.SAVINGS_ACCOUNT.toString())) {
-                    entityType = GlobalEntityType.SAVINGS_ACCOUNT;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.SAVINGS_TRANSACTIONS.toString())) {
-                    entityType = GlobalEntityType.SAVINGS_TRANSACTIONS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.RECURRING_DEPOSIT_ACCOUNTS.toString())) {
-                    entityType = GlobalEntityType.RECURRING_DEPOSIT_ACCOUNTS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.RECURRING_DEPOSIT_ACCOUNTS_TRANSACTIONS.toString())) {
-                    entityType = GlobalEntityType.RECURRING_DEPOSIT_ACCOUNTS_TRANSACTIONS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.FIXED_DEPOSIT_ACCOUNTS.toString())) {
-                    entityType = GlobalEntityType.FIXED_DEPOSIT_ACCOUNTS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.FIXED_DEPOSIT_TRANSACTIONS.toString())) {
-                    entityType = GlobalEntityType.FIXED_DEPOSIT_TRANSACTIONS;
-                    primaryColumn = 0;
-                } else if (entity.trim().equalsIgnoreCase(GlobalEntityType.USERS.toString())) {
-                    entityType = GlobalEntityType.USERS;
-                    primaryColumn = 0;
-                } else {
-                    workbook.close();
-                    throw new GeneralPlatformDomainRuleException("error.msg.unable.to.find.resource", "Unable to find requested resource");
-
-                }
-                return publishEvent(primaryColumn, fileDetail, bis, entityType, workbook, locale, dateFormat);
+            if (entity == null || inputStream == null || fileDetail == null || locale == null || dateFormat == null) {
+                throw new GeneralPlatformDomainRuleException("error.msg.null", "One or more of the given parameters not found");
             }
-            throw new GeneralPlatformDomainRuleException("error.msg.null", "One or more of the given parameters not found");
+            final GlobalEntityType entityType = resolveEntityType(entity);
+            this.securityContext.authenticatedUser().validateHasCreatePermission(createPermissionResource(entityType));
+
+            final byte[] bytes = readWorkbook(inputStream);
+            final InputStream clonedInputStream = new ByteArrayInputStream(bytes);
+            final BufferedInputStream bis = new BufferedInputStream(new ByteArrayInputStream(bytes));
+            final Tika tika = new Tika();
+            final TikaInputStream tikaInputStream = TikaInputStream.get(bis);
+            final String fileType = tika.detect(tikaInputStream);
+            if (!fileType.contains("msoffice") && !fileType.contains("application/vnd.ms-excel")) {
+                throw new GeneralPlatformDomainRuleException("error.msg.invalid.file.extension",
+                        "Uploaded file extension is not recognized.");
+            }
+            final Workbook workbook = new HSSFWorkbook(clonedInputStream);
+            return publishEvent(0, fileDetail, bis, entityType, workbook, locale, dateFormat);
         } catch (IOException e) {
             LOG.error("Problem occurred in importWorkbook function", e);
             throw new GeneralPlatformDomainRuleException("error.msg.io.exception",
                     "IO exception occured with " + fileDetail.getFileName() + " " + e.getMessage(), e);
 
         }
+    }
+
+    private static GlobalEntityType resolveEntityType(final String entity) {
+        try {
+            final GlobalEntityType entityType = GlobalEntityType.valueOf(entity.trim().toUpperCase(Locale.ROOT));
+            createPermissionResource(entityType);
+            return entityType;
+        } catch (IllegalArgumentException exception) {
+            throw new GeneralPlatformDomainRuleException("error.msg.unable.to.find.resource", "Unable to find requested resource");
+        }
+    }
+
+    private static String createPermissionResource(final GlobalEntityType entityType) {
+        return switch (entityType) {
+            case CLIENTS_PERSON, CLIENTS_ENTITY -> "CLIENT";
+            case CENTERS -> "CENTER";
+            case GROUPS -> "GROUP";
+            case LOANS, LOAN_TRANSACTIONS -> "LOAN";
+            case GUARANTORS -> "GUARANTOR";
+            case OFFICES -> "OFFICE";
+            case CHART_OF_ACCOUNTS -> "GLACCOUNT";
+            case GL_JOURNAL_ENTRIES -> "JOURNALENTRY";
+            case STAFF -> "STAFF";
+            case SHARE_ACCOUNTS -> "SHAREACCOUNT";
+            case SAVINGS_ACCOUNT, SAVINGS_TRANSACTIONS -> "SAVINGSACCOUNT";
+            case RECURRING_DEPOSIT_ACCOUNTS, RECURRING_DEPOSIT_ACCOUNTS_TRANSACTIONS -> "RECURRINGDEPOSITACCOUNT";
+            case FIXED_DEPOSIT_ACCOUNTS, FIXED_DEPOSIT_TRANSACTIONS -> "FIXEDDEPOSITACCOUNT";
+            case USERS -> "USER";
+            default -> throw new IllegalArgumentException("Unsupported import entity: " + entityType);
+        };
+    }
+
+    private static byte[] readWorkbook(final InputStream inputStream) throws IOException {
+        final long maxSize = ContentRepository.MAX_FILE_UPLOAD_SIZE_IN_MB * 1024L * 1024L;
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        final byte[] buffer = new byte[8192];
+        long totalSize = 0;
+        int bytesRead;
+        while ((bytesRead = inputStream.read(buffer, 0, (int) Math.min(buffer.length, maxSize - totalSize + 1))) != -1) {
+            totalSize += bytesRead;
+            if (totalSize > maxSize) {
+                throw new GeneralPlatformDomainRuleException("error.msg.document.file.too.big",
+                        "Uploaded workbook exceeds the maximum allowed size of " + ContentRepository.MAX_FILE_UPLOAD_SIZE_IN_MB + " MB.");
+            }
+            outputStream.write(buffer, 0, bytesRead);
+        }
+        return outputStream.toByteArray();
     }
 
     private Long publishEvent(final Integer primaryColumn, final FormDataContentDisposition fileDetail,

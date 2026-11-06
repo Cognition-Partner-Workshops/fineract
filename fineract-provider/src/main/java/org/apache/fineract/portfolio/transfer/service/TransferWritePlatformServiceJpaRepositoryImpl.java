@@ -31,6 +31,7 @@ import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
@@ -86,6 +87,7 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
     private final ClientTransferDetailsRepositoryWrapper clientTransferDetailsRepositoryWrapper;
     private final PlatformSecurityContext context;
     private final LoanOfficerService loanOfficerService;
+    private final OfficeScopeValidator officeScopeValidator;
 
     @Override
     @Transactional
@@ -256,6 +258,7 @@ public class TransferWritePlatformServiceJpaRepositoryImpl implements TransferWr
         this.transfersDataValidator.validateForProposeAndAcceptClientTransfer(jsonCommand.json());
 
         final Long destinationOfficeId = jsonCommand.longValueOfParameterNamed(TransferApiConstants.destinationOfficeIdParamName);
+        this.officeScopeValidator.validateOffice(destinationOfficeId);
         final Office office = this.officeRepository.findOneWithNotFoundDetection(destinationOfficeId);
         final Client client = this.clientRepositoryWrapper.findOneWithNotFoundDetection(clientId, true);
         handleClientTransferLifecycleEvent(client, office, TransferEventType.PROPOSAL, jsonCommand);

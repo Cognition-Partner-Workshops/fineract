@@ -248,7 +248,7 @@ public class JournalEntriesApiResource {
     @Produces({ MediaType.APPLICATION_JSON })
     public String retrieveJournalEntries(@QueryParam("offset") final Integer offset, @QueryParam("limit") final Integer limit,
             @QueryParam("entryId") final Long entryId, @Context final UriInfo uriInfo) {
-        this.context.authenticatedUser();
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSION);
         String transactionId = "P" + entryId;
         SearchParameters params = SearchParameters.builder().limit(limit).offset(offset).build();
         Page<JournalEntryData> entries = this.journalEntryReadPlatformService.retrieveAll(params, null, null, null, null, null, null,
@@ -280,6 +280,7 @@ public class JournalEntriesApiResource {
     @Produces("application/vnd.ms-excel")
     public Response getJournalEntriesTemplate(@QueryParam("officeId") final Long officeId,
             @QueryParam("dateFormat") final String dateFormat) {
+        this.context.authenticatedUser().validateHasReadPermission(RESOURCE_NAME_FOR_PERMISSION);
         return bulkImportWorkbookPopulatorService.getTemplate(GlobalEntityType.GL_JOURNAL_ENTRIES.toString(), officeId, null, dateFormat);
     }
 

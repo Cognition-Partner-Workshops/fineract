@@ -18,6 +18,7 @@
  */
 package org.apache.fineract.portfolio.transfer.starter;
 
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
 import org.apache.fineract.organisation.staff.domain.StaffRepositoryWrapper;
@@ -51,10 +52,10 @@ public class TransferConfiguration {
             SavingsAccountRepositoryWrapper savingsAccountRepositoryWrapper,
             SavingsAccountWritePlatformService savingsAccountWritePlatformService,
             ClientTransferDetailsRepositoryWrapper clientTransferDetailsRepositoryWrapper, PlatformSecurityContext context,
-            LoanOfficerService loanOfficerService) {
+            LoanOfficerService loanOfficerService, OfficeScopeValidator officeScopeValidator) {
         return new TransferWritePlatformServiceJpaRepositoryImpl(clientRepositoryWrapper, officeRepository, calendarInstanceRepository,
                 groupRepository, loanWritePlatformService, savingsAccountWritePlatformService, loanRepositoryWrapper,
                 savingsAccountRepositoryWrapper, transfersDataValidator, noteWritePlatformService, staffRepositoryWrapper,
-                clientTransferDetailsRepositoryWrapper, context, loanOfficerService);
+                clientTransferDetailsRepositoryWrapper, context, loanOfficerService, officeScopeValidator);
     }
 }

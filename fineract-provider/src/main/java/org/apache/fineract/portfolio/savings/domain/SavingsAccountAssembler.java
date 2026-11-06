@@ -57,6 +57,7 @@ import org.apache.fineract.infrastructure.core.api.JsonCommand;
 import org.apache.fineract.infrastructure.core.exception.UnsupportedParameterException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.organisation.staff.domain.Staff;
 import org.apache.fineract.organisation.staff.domain.StaffRepositoryWrapper;
 import org.apache.fineract.portfolio.account.service.AccountTransfersReadPlatformService;
@@ -101,6 +102,7 @@ public class SavingsAccountAssembler {
     private final JdbcTemplate jdbcTemplate;
     private final ConfigurationDomainService configurationDomainService;
     private final ExternalIdFactory externalIdFactory;
+    private final OfficeScopeValidator officeScopeValidator;
 
     @Autowired
     public SavingsAccountAssembler(final SavingsAccountTransactionSummaryWrapper savingsAccountTransactionSummaryWrapper,
@@ -110,7 +112,8 @@ public class SavingsAccountAssembler {
             final SavingsAccountRepositoryWrapper savingsAccountRepository,
             final SavingsAccountChargeAssembler savingsAccountChargeAssembler, final FromJsonHelper fromApiJsonHelper,
             final AccountTransfersReadPlatformService accountTransfersReadPlatformService, final JdbcTemplate jdbcTemplate,
-            final ConfigurationDomainService configurationDomainService, ExternalIdFactory externalIdFactory) {
+            final ConfigurationDomainService configurationDomainService, ExternalIdFactory externalIdFactory,
+            final OfficeScopeValidator officeScopeValidator) {
         this.savingsAccountTransactionSummaryWrapper = savingsAccountTransactionSummaryWrapper;
         this.savingsAccountTransactionDataSummaryWrapper = savingsAccountTransactionDataSummaryWrapper;
         this.clientRepository = clientRepository;
@@ -124,6 +127,7 @@ public class SavingsAccountAssembler {
         this.jdbcTemplate = jdbcTemplate;
         this.configurationDomainService = configurationDomainService;
         this.externalIdFactory = externalIdFactory;
+        this.officeScopeValidator = officeScopeValidator;
     }
 
     /**
@@ -148,6 +152,7 @@ public class SavingsAccountAssembler {
 
         final Long clientId = this.fromApiJsonHelper.extractLongNamed(clientIdParamName, element);
         if (clientId != null) {
+            officeScopeValidator.validateClient(clientId);
             client = this.clientRepository.findOneWithNotFoundDetection(clientId);
             accountType = AccountType.INDIVIDUAL;
             if (client.isNotActive()) {
@@ -157,6 +162,7 @@ public class SavingsAccountAssembler {
 
         final Long groupId = this.fromApiJsonHelper.extractLongNamed(groupIdParamName, element);
         if (groupId != null) {
+            officeScopeValidator.validateGroup(groupId);
             group = this.groupRepository.findOneWithNotFoundDetection(groupId);
             accountType = AccountType.GROUP;
             if (group.isNotActive()) {
@@ -340,6 +346,7 @@ public class SavingsAccountAssembler {
     }
 
     public SavingsAccount assembleFrom(final Long savingsId, final boolean backdatedTxnsAllowedTill) {
+        officeScopeValidator.validateSavings(savingsId);
         SavingsAccount account = this.savingsAccountRepository.findSavingsWithNotFoundDetection(savingsId, backdatedTxnsAllowedTill);
         return loadTransactionsToSavingsAccount(account, backdatedTxnsAllowedTill);
     }

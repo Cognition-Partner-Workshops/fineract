@@ -383,7 +383,10 @@ public class FixedDepositTest extends IntegrationTest {
         this.journalEntryHelper.checkJournalEntryForAssetAccount(expenseAccount, INTEREST_POSTED_DATE, expenseAccountEntry);
         this.journalEntryHelper.checkJournalEntryForLiabilityAccount(liabilityAccount, INTEREST_POSTED_DATE, liablilityAccountEntry);
 
+        HashMap summaryBeforePrematureCalculation = this.fixedDepositAccountHelper.getFixedDepositSummary(fixedDepositAccountId);
         this.fixedDepositAccountHelper.calculatePrematureAmountForFixedDeposit(fixedDepositAccountId, CLOSED_ON_DATE);
+        Assertions.assertEquals(summaryBeforePrematureCalculation,
+                this.fixedDepositAccountHelper.getFixedDepositSummary(fixedDepositAccountId));
 
         Integer prematureClosureTransactionId = (Integer) this.fixedDepositAccountHelper.prematureCloseForFixedDeposit(
                 fixedDepositAccountId, CLOSED_ON_DATE, CLOSURE_TYPE_WITHDRAW_DEPOSIT, null, CommonConstants.RESPONSE_RESOURCE_ID);

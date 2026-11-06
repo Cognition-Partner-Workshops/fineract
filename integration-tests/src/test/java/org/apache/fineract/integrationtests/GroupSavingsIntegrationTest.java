@@ -20,6 +20,7 @@ package org.apache.fineract.integrationtests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.gson.Gson;
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.builder.ResponseSpecBuilder;
 import io.restassured.http.ContentType;
@@ -392,6 +393,43 @@ public class GroupSavingsIntegrationTest {
         final Integer depositId = this.savingsAccountHelper.depositGsimApplication(savingsId, savingsArray);
         Assertions.assertNotNull(depositId);
 
+    }
+
+    @Test
+    public void rejectsGsimDepositForSavingsOutsideParentAccount() {
+        this.savingsAccountHelper = new SavingsAccountHelper(this.requestSpec, this.responseSpec);
+        final Integer savingsProductID = createSavingsProduct(this.requestSpec, this.responseSpec, MINIMUM_OPENING_BALANCE, null, null,
+                "false");
+
+        final Integer firstClientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        Integer firstGroupId = GroupHelper.createGroup(this.requestSpec, this.responseSpec, true);
+        firstGroupId = GroupHelper.associateClient(this.requestSpec, this.responseSpec, firstGroupId.toString(), firstClientId.toString());
+        final Integer firstGsimId = createActiveGsim(firstClientId, firstGroupId, savingsProductID);
+
+        final Integer secondClientId = ClientHelper.createClient(this.requestSpec, this.responseSpec);
+        Integer secondGroupId = GroupHelper.createGroup(this.requestSpec, this.responseSpec, true);
+        secondGroupId = GroupHelper.associateClient(this.requestSpec, this.responseSpec, secondGroupId.toString(),
+                secondClientId.toString());
+        final Integer secondGsimId = createActiveGsim(secondClientId, secondGroupId, savingsProductID);
+
+        final Integer firstChildSavingsId = getGsimChildSavingsId(firstGroupId, firstGsimId);
+        final Integer secondChildSavingsId = getGsimChildSavingsId(secondGroupId, secondGsimId);
+        final PostPaymentTypesResponse paymentTypesResponse = this.paymentTypeHelper
+                .createPaymentType(new PaymentTypeRequest().name(PaymentTypeHelper.randomNameGenerator("P_T", 5))
+                        .description(PaymentTypeHelper.randomNameGenerator("PT_Desc", 15)).isCashPayment(true).position(1));
+        final Long paymentTypeId = paymentTypesResponse.getResourceId();
+        final String depositUrl = "/fineract-provider/api/v1/savingsaccounts/" + firstGsimId + "/transactions?command=gsimDeposit&"
+                + Utils.TENANT_IDENTIFIER;
+
+        final io.restassured.response.Response ownGsimDeposit = io.restassured.RestAssured.given().spec(this.requestSpec)
+                .contentType(ContentType.JSON).body(gsimDepositForm(paymentTypeId, firstChildSavingsId)).post(depositUrl);
+        Assertions.assertEquals(200, ownGsimDeposit.statusCode(), ownGsimDeposit.asString());
+
+        final io.restassured.response.Response foreignGsimDeposit = io.restassured.RestAssured.given().spec(this.requestSpec)
+                .contentType(ContentType.JSON).body(gsimDepositForm(paymentTypeId, secondChildSavingsId)).post(depositUrl);
+        Assertions.assertTrue(foreignGsimDeposit.statusCode() >= 400 && foreignGsimDeposit.statusCode() < 500,
+                "Expected deposit into a savings account outside the GSIM account to be rejected, got " + foreignGsimDeposit.statusCode()
+                        + ": " + foreignGsimDeposit.asString());
     }
 
     @SuppressWarnings("unchecked")
@@ -862,6 +900,41 @@ public class GroupSavingsIntegrationTest {
         map.put("isParentAccount", isParent);
         map.put("isGSIM", "true");
         return map;
+    }
+
+    private Integer createActiveGsim(final Integer clientId, final Integer groupId, final Integer savingsProductId) {
+        final List<Map<String, Object>> clientArray = List.of(clientArray(clientId, groupId, savingsProductId, "08 January 2013", true));
+        this.savingsAccountHelper.applyForGsimApplication(clientArray);
+        final List<?> gsimIds = GroupHelper.verifyRetrieveGsimAccounts(this.requestSpec, this.responseSpec, groupId);
+        final Integer gsimId = ((Number) gsimIds.get(0)).intValue();
+        HashMap savingsStatus = this.savingsAccountHelper.approveGsimSavings(gsimId);
+        SavingsStatusChecker.verifySavingsIsApproved(savingsStatus);
+        savingsStatus = this.savingsAccountHelper.activateGsimSavings(gsimId);
+        SavingsStatusChecker.verifySavingsIsActive(savingsStatus);
+        return gsimId;
+    }
+
+    private Integer getGsimChildSavingsId(final Integer groupId, final Integer gsimId) {
+        final String gsimAccountsUrl = "/fineract-provider/api/v1/groups/" + groupId + "/gsimaccounts?parentGSIMId=" + gsimId + "&"
+                + Utils.TENANT_IDENTIFIER;
+        final io.restassured.response.Response response = io.restassured.RestAssured.given().spec(this.requestSpec).get(gsimAccountsUrl);
+        Assertions.assertEquals(200, response.statusCode(), response.asString());
+        return response.jsonPath().getInt("[0].childGSIMAccounts[0].id");
+    }
+
+    private String gsimDepositForm(final Long paymentTypeId, final Integer childAccountId) {
+        Map<String, Object> savingsTransaction = new HashMap<>();
+        savingsTransaction.put("transactionDate", "10 March 2013");
+        savingsTransaction.put("dateFormat", CommonConstants.DATE_FORMAT);
+        savingsTransaction.put("locale", "en");
+        savingsTransaction.put("transactionAmount", 2500);
+        savingsTransaction.put("paymentTypeId", paymentTypeId);
+        savingsTransaction.put("childAccountId", childAccountId);
+        Map<String, Object> form = new HashMap<>();
+        form.put("savingsArray", List.of(savingsTransaction));
+        form.put("dateFormat", CommonConstants.DATE_FORMAT);
+        form.put("locale", "en");
+        return new Gson().toJson(form);
     }
 
     private Map<String, Object> savingsArray(final Long paymentId, final Integer savingsId, final Integer transactionAmount,

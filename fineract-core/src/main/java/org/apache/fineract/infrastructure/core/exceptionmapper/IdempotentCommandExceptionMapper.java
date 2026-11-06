@@ -19,6 +19,7 @@
 package org.apache.fineract.infrastructure.core.exceptionmapper;
 
 import static org.apache.fineract.infrastructure.core.exception.AbstractIdempotentCommandException.IDEMPOTENT_CACHE_HEADER;
+import static org.apache.http.HttpStatus.SC_CONFLICT;
 import static org.apache.http.HttpStatus.SC_INTERNAL_SERVER_ERROR;
 import static org.apache.http.HttpStatus.SC_OK;
 
@@ -27,8 +28,10 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.fineract.infrastructure.core.data.ApiGlobalErrorResponse;
 import org.apache.fineract.infrastructure.core.exception.AbstractIdempotentCommandException;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
+import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessConflictException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessFailedException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessSucceedException;
 import org.apache.fineract.infrastructure.core.exception.IdempotentCommandProcessUnderProcessingException;
@@ -48,6 +51,11 @@ public class IdempotentCommandExceptionMapper implements FineractExceptionMapper
     @Override
     public Response toResponse(final AbstractIdempotentCommandException exception) {
         log.warn("Exception occurred", ErrorHandler.findMostSpecificException(exception));
+        if (exception instanceof IdempotentCommandProcessConflictException) {
+            ApiGlobalErrorResponse errorResponse = ApiGlobalErrorResponse.create(SC_CONFLICT, "error.msg.idempotency.key.conflict",
+                    "The idempotency key is already used by another user.", "The idempotency key is already in use.");
+            return Response.status(SC_CONFLICT).entity(errorResponse).type(MediaType.APPLICATION_JSON).build();
+        }
         Integer status = null;
         if (exception instanceof IdempotentCommandProcessSucceedException pse) {
             Integer statusCode = pse.getStatusCode();

@@ -32,6 +32,7 @@ import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.portfolio.account.PortfolioAccountType;
 import org.apache.fineract.portfolio.account.api.StandingInstructionApiConstants;
 import org.apache.fineract.portfolio.account.data.StandingInstructionDataValidator;
@@ -55,6 +56,7 @@ public class StandingInstructionWritePlatformServiceImpl implements StandingInst
     private final StandingInstructionAssembler standingInstructionAssembler;
     private final AccountTransferDetailRepository accountTransferDetailRepository;
     private final StandingInstructionRepository standingInstructionRepository;
+    private final OfficeScopeValidator officeScopeValidator;
 
     @Transactional
     @Override
@@ -127,13 +129,16 @@ public class StandingInstructionWritePlatformServiceImpl implements StandingInst
         this.standingInstructionDataValidator.validateForUpdate(command);
         AccountTransferStandingInstruction standingInstructionsForUpdate = this.standingInstructionRepository.findById(id)
                 .orElseThrow(() -> new StandingInstructionNotFoundException(id));
+        validateSourceAccountScope(standingInstructionsForUpdate);
         final Map<String, Object> actualChanges = standingInstructionsForUpdate.update(command);
         return new CommandProcessingResultBuilder().withCommandId(command.commandId()).withEntityId(id).with(actualChanges).build();
     }
 
     @Override
     public CommandProcessingResult delete(final Long id) {
-        AccountTransferStandingInstruction standingInstructionsForUpdate = this.standingInstructionRepository.findById(id).orElseThrow();
+        AccountTransferStandingInstruction standingInstructionsForUpdate = this.standingInstructionRepository.findById(id)
+                .orElseThrow(() -> new StandingInstructionNotFoundException(id));
+        validateSourceAccountScope(standingInstructionsForUpdate);
         // update the "deleted" and "name" properties of the standing
         // instruction
         standingInstructionsForUpdate.delete();
@@ -141,5 +146,14 @@ public class StandingInstructionWritePlatformServiceImpl implements StandingInst
         final Map<String, Object> actualChanges = new HashMap<>();
         actualChanges.put(statusParamName, StandingInstructionStatus.DELETED.getValue());
         return new CommandProcessingResultBuilder().withEntityId(id).with(actualChanges).build();
+    }
+
+    private void validateSourceAccountScope(final AccountTransferStandingInstruction standingInstruction) {
+        final AccountTransferDetails accountTransferDetails = standingInstruction.accountTransferDetails();
+        if (accountTransferDetails.fromSavingsAccount() != null) {
+            this.officeScopeValidator.validateSavings(accountTransferDetails.fromSavingsAccount().getId());
+        } else {
+            this.officeScopeValidator.validateLoan(accountTransferDetails.fromLoanAccount().getId());
+        }
     }
 }

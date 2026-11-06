@@ -34,7 +34,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
+import org.apache.fineract.infrastructure.core.data.PaginationParametersDataValidator;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
@@ -66,6 +68,9 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.util.CollectionUtils;
 
 public class StandingInstructionReadPlatformServiceImpl implements StandingInstructionReadPlatformService {
+
+    private static final Set<String> SUPPORTED_ORDER_BY_VALUES = Set.of("id", "name", "priority", "status", "instructiontype", "amount",
+            "validfrom", "validtill", "transfertype");
 
     private final JdbcTemplate jdbcTemplate;
     private final ColumnValidator columnValidator;
@@ -256,6 +261,8 @@ public class StandingInstructionReadPlatformServiceImpl implements StandingInstr
 
     @Override
     public Page<StandingInstructionData> retrieveAll(final StandingInstructionDTO standingInstructionDTO) {
+        PaginationParametersDataValidator.validateSearchParameters(standingInstructionDTO.searchParameters(), SUPPORTED_ORDER_BY_VALUES,
+                "standingInstruction");
 
         final StringBuilder sqlBuilder = new StringBuilder(200);
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");

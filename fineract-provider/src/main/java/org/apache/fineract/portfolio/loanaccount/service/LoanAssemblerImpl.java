@@ -45,6 +45,7 @@ import org.apache.fineract.infrastructure.core.api.JsonQuery;
 import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.organisation.holiday.domain.Holiday;
 import org.apache.fineract.organisation.holiday.domain.HolidayRepository;
 import org.apache.fineract.organisation.holiday.domain.HolidayStatusType;
@@ -137,6 +138,7 @@ public class LoanAssemblerImpl implements LoanAssembler {
     private final LoanChargeService loanChargeService;
     private final LoanOfficerService loanOfficerService;
     private final LoanScheduleComponent loanSchedule;
+    private final OfficeScopeValidator officeScopeValidator;
 
     @Override
     public Loan assembleFrom(final Long accountId) {
@@ -145,17 +147,22 @@ public class LoanAssemblerImpl implements LoanAssembler {
 
     @Override
     public Loan assembleFrom(final Long accountId, final boolean loadLazyCollections) {
+        officeScopeValidator.validateLoan(accountId);
         return loanRepository.findOneWithNotFoundDetection(accountId, loadLazyCollections);
     }
 
     @Override
     public Loan assembleFrom(final ExternalId externalId) {
-        return loanRepository.findOneWithNotFoundDetection(externalId, true);
+        final Loan loan = loanRepository.findOneWithNotFoundDetection(externalId, true);
+        officeScopeValidator.validateLoan(loan.getId());
+        return loan;
     }
 
     @Override
     public Loan assembleFrom(final ExternalId externalId, final boolean loadLazyCollections) {
-        return loanRepository.findOneWithNotFoundDetection(externalId, loadLazyCollections);
+        final Loan loan = loanRepository.findOneWithNotFoundDetection(externalId, loadLazyCollections);
+        officeScopeValidator.validateLoan(loan.getId());
+        return loan;
     }
 
     @Override
@@ -164,6 +171,8 @@ public class LoanAssemblerImpl implements LoanAssembler {
 
         final Long clientId = this.fromApiJsonHelper.extractLongNamed("clientId", element);
         final Long groupId = this.fromApiJsonHelper.extractLongNamed("groupId", element);
+        officeScopeValidator.validateClient(clientId);
+        officeScopeValidator.validateGroup(groupId);
         final String accountNo = this.fromApiJsonHelper.extractStringNamed("accountNo", element);
         final Long productId = this.fromApiJsonHelper.extractLongNamed("productId", element);
         final Long fundId = this.fromApiJsonHelper.extractLongNamed("fundId", element);

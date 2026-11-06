@@ -26,7 +26,9 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.apache.fineract.infrastructure.core.data.EnumOptionData;
+import org.apache.fineract.infrastructure.core.data.PaginationParametersDataValidator;
 import org.apache.fineract.infrastructure.core.domain.JdbcSupport;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.Page;
@@ -44,6 +46,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
 public class StandingInstructionHistoryReadPlatformServiceImpl implements StandingInstructionHistoryReadPlatformService {
+
+    private static final Set<String> SUPPORTED_ORDER_BY_VALUES = Set.of("id", "name", "status", "executiontime", "amount");
 
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseSpecificSQLGenerator sqlGenerator;
@@ -66,6 +70,8 @@ public class StandingInstructionHistoryReadPlatformServiceImpl implements Standi
 
     @Override
     public Page<StandingInstructionHistoryData> retrieveAll(StandingInstructionDTO standingInstructionDTO) {
+        PaginationParametersDataValidator.validateSearchParameters(standingInstructionDTO.searchParameters(), SUPPORTED_ORDER_BY_VALUES,
+                "standingInstructionHistory");
 
         final StringBuilder sqlBuilder = new StringBuilder(200);
         sqlBuilder.append("select " + sqlGenerator.calcFoundRows() + " ");

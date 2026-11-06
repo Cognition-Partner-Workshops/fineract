@@ -21,15 +21,23 @@ package org.apache.fineract.integrationtests;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.builder.ResponseSpecBuilder;
 import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.apache.fineract.client.models.PutGlobalConfigurationsRequest;
 import org.apache.fineract.client.models.PutPermissionsRequest;
 import org.apache.fineract.infrastructure.configuration.api.GlobalConfigurationConstants;
@@ -84,7 +92,7 @@ public class MakercheckerTest {
     }
 
     @Test
-    public void testMakerCheckerOn() {
+    public void testMakerCheckerOnWithConcurrentApproval() throws Exception {
 
         globalConfigurationHelper.updateGlobalConfiguration(GlobalConfigurationConstants.MAKER_CHECKER,
                 new PutGlobalConfigurationsRequest().enabled(true));
@@ -156,8 +164,10 @@ public class MakercheckerTest {
             String checker = Utils.uniqueRandomStringGenerator("user", 8);
             final Integer checkerUserId = (Integer) UserHelper.createUser(this.requestSpec, this.responseSpec, roleId, staffId, checker,
                     "A1b2c3d4e5f$", "resourceId");
+            final String checkerAuthorization = "Basic "
+                    + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(checker, "A1b2c3d4e5f$");
             RequestSpecification checkerRequestSpec = new RequestSpecBuilder().setContentType(ContentType.JSON).build()
-                    .header("Authorization", "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey(checker, "A1b2c3d4e5f$"));
+                    .header("Authorization", checkerAuthorization);
 
             // check by another checker user should succeed
             HashMap<?, ?> response = MakercheckersHelper.approveMakerCheckerEntry(checkerRequestSpec, responseSpec, clientCommandId);
@@ -166,10 +176,13 @@ public class MakercheckerTest {
             assertNotNull(clientId);
             ClientHelper.verifyClientCreatedOnServer(requestSpec, responseSpec, clientId);
 
-            response = MakercheckersHelper.approveMakerCheckerEntry(checkerRequestSpec, responseSpec, savingCommandId);
-            assertNotNull(response);
-            withdrawalId = (Integer) response.get("resourceId");
-            assertNotNull(withdrawalId);
+            final int transactionCountBeforeApproval = savingsAccountHelper.getSavingsCollectionAttribute(savingsId, "transactions").size();
+            final List<Integer> approvalStatusCodes = approveConcurrently(checkerAuthorization, savingCommandId);
+            assertEquals(1L, approvalStatusCodes.stream().filter(statusCode -> statusCode == 200).count());
+            assertEquals(1L, approvalStatusCodes.stream().filter(statusCode -> statusCode >= 400 && statusCode < 500).count());
+            final int transactionCountAfterApproval = savingsAccountHelper.getSavingsCollectionAttribute(savingsId, "transactions").size();
+            assertEquals(transactionCountBeforeApproval + 1, transactionCountAfterApproval,
+                    "The concurrent approvals should create exactly one savings transaction");
 
             // add checker superuser permission - actions are performed in one step
             permissionMap = Map.of("CHECKER_SUPER_USER", true);
@@ -205,5 +218,31 @@ public class MakercheckerTest {
         final Integer savingsProductID = createSavingsProductDailyPosting();
         assertNotNull(savingsProductID);
         return savingsAccountHelper.createApproveActivateSavingsAccount(clientID, savingsProductID, startDate);
+    }
+
+    private List<Integer> approveConcurrently(final String authorization, final Long auditId) throws Exception {
+        final CountDownLatch ready = new CountDownLatch(2);
+        final CountDownLatch start = new CountDownLatch(1);
+        final String url = "/fineract-provider/api/v1/makercheckers/" + auditId + "?command=approve&" + Utils.TENANT_IDENTIFIER;
+        final Callable<Integer> approval = () -> {
+            ready.countDown();
+            if (!start.await(30, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out waiting for concurrent approval start");
+            }
+            final Response response = io.restassured.RestAssured.given().contentType(ContentType.JSON)
+                    .header("Authorization", authorization).body("").post(url);
+            return response.getStatusCode();
+        };
+        final ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            final Future<Integer> first = executor.submit(approval);
+            final Future<Integer> second = executor.submit(approval);
+            assertTrue(ready.await(30, TimeUnit.SECONDS), "Both approval requests should be ready before release");
+            start.countDown();
+            return List.of(first.get(2, TimeUnit.MINUTES), second.get(2, TimeUnit.MINUTES));
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
     }
 }

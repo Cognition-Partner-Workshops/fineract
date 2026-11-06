@@ -186,6 +186,7 @@ public class DatatablesApiResource {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OK", content = @Content(schema = @Schema(implementation = DatatablesApiResourceSwagger.PutDataTablesResponse.class))) })
     public String deregisterDatatable(@PathParam("datatable") @Parameter(description = "datatable") final String datatable) {
+        this.context.authenticatedUser().validateHasPermissionTo("DEREGISTER_DATATABLE");
         this.datatableWriteService.deregisterDatatable(datatable);
         final CommandProcessingResult result = new CommandProcessingResultBuilder().withResourceIdAsString(datatable).build();
         return this.toApiJsonSerializer.serialize(result);

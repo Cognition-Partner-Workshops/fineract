@@ -28,7 +28,9 @@ import static org.apache.fineract.portfolio.account.AccountDetailConstants.trans
 
 import com.google.gson.JsonElement;
 import java.util.Locale;
+import java.util.Objects;
 import org.apache.fineract.infrastructure.core.api.JsonCommand;
+import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.organisation.office.domain.Office;
 import org.apache.fineract.organisation.office.domain.OfficeRepositoryWrapper;
@@ -102,12 +104,10 @@ public class AccountTransferDetailAssembler {
             final SavingsAccount toSavingsAccount) {
 
         final JsonElement element = command.parsedJson();
+        validateSourceOfficeAndClient(element, fromSavingsAccount.office(), fromSavingsAccount.getClient());
 
-        final Long fromOfficeId = this.fromApiJsonHelper.extractLongNamed(fromOfficeIdParamName, element);
-        final Office fromOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(fromOfficeId);
-
-        final Long fromClientId = this.fromApiJsonHelper.extractLongNamed(fromClientIdParamName, element);
-        final Client fromClient = this.clientRepository.findOneWithNotFoundDetection(fromClientId);
+        final Office fromOffice = fromSavingsAccount.office();
+        final Client fromClient = fromSavingsAccount.getClient();
 
         final Long toOfficeId = this.fromApiJsonHelper.extractLongNamed(toOfficeIdParamName, element);
         final Office toOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(toOfficeId);
@@ -126,12 +126,10 @@ public class AccountTransferDetailAssembler {
             final Loan toLoanAccount) {
 
         final JsonElement element = command.parsedJson();
+        validateSourceOfficeAndClient(element, fromSavingsAccount.office(), fromSavingsAccount.getClient());
 
-        final Long fromOfficeId = this.fromApiJsonHelper.extractLongNamed(fromOfficeIdParamName, element);
-        final Office fromOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(fromOfficeId);
-
-        final Long fromClientId = this.fromApiJsonHelper.extractLongNamed(fromClientIdParamName, element);
-        final Client fromClient = this.clientRepository.findOneWithNotFoundDetection(fromClientId);
+        final Office fromOffice = fromSavingsAccount.office();
+        final Client fromClient = fromSavingsAccount.getClient();
 
         final Long toOfficeId = this.fromApiJsonHelper.extractLongNamed(toOfficeIdParamName, element);
         final Office toOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(toOfficeId);
@@ -150,12 +148,10 @@ public class AccountTransferDetailAssembler {
             final SavingsAccount toSavingsAccount) {
 
         final JsonElement element = command.parsedJson();
+        validateSourceOfficeAndClient(element, fromLoanAccount.getOffice(), fromLoanAccount.client());
 
-        final Long fromOfficeId = this.fromApiJsonHelper.extractLongNamed(fromOfficeIdParamName, element);
-        final Office fromOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(fromOfficeId);
-
-        final Long fromClientId = this.fromApiJsonHelper.extractLongNamed(fromClientIdParamName, element);
-        final Client fromClient = this.clientRepository.findOneWithNotFoundDetection(fromClientId);
+        final Office fromOffice = fromLoanAccount.getOffice();
+        final Client fromClient = fromLoanAccount.client();
 
         final Long toOfficeId = this.fromApiJsonHelper.extractLongNamed(toOfficeIdParamName, element);
         final Office toOffice = this.officeRepositoryWrapper.findOneWithNotFoundDetection(toOfficeId);
@@ -166,6 +162,21 @@ public class AccountTransferDetailAssembler {
 
         return AccountTransferDetails.loanTosavingsTransfer(fromOffice, fromClient, fromLoanAccount, toOffice, toClient, toSavingsAccount,
                 transfertype);
+    }
+
+    private void validateSourceOfficeAndClient(final JsonElement element, final Office sourceOffice, final Client sourceClient) {
+        final Long fromOfficeId = this.fromApiJsonHelper.extractLongNamed(fromOfficeIdParamName, element);
+        if (!Objects.equals(fromOfficeId, sourceOffice.getId())) {
+            throw new PlatformApiDataValidationException("error.msg.accounttransfer.from.office.id.mismatch",
+                    "fromOfficeId must match the source account office.", fromOfficeIdParamName, sourceOffice.getId());
+        }
+
+        final Long fromClientId = this.fromApiJsonHelper.extractLongNamed(fromClientIdParamName, element);
+        final Long sourceClientId = sourceClient == null ? null : sourceClient.getId();
+        if (!Objects.equals(fromClientId, sourceClientId)) {
+            throw new PlatformApiDataValidationException("error.msg.accounttransfer.from.client.id.mismatch",
+                    "fromClientId must match the source account client.", fromClientIdParamName, sourceClientId);
+        }
     }
 
     public AccountTransferDetails assembleSavingsToLoanTransfer(final SavingsAccount fromSavingsAccount, final Loan toLoanAccount,

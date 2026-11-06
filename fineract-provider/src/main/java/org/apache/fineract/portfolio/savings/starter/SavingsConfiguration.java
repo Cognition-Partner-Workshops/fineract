@@ -36,6 +36,7 @@ import org.apache.fineract.infrastructure.dataqueries.service.EntityDatatableChe
 import org.apache.fineract.infrastructure.dataqueries.service.GenericDataService;
 import org.apache.fineract.infrastructure.entityaccess.service.FineractEntityAccessUtil;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.holiday.domain.HolidayRepositoryWrapper;
@@ -256,13 +257,13 @@ public class SavingsConfiguration {
             SavingsAccountChargeAssembler savingsAccountChargeAssembler, AccountAssociationsRepository accountAssociationsRepository,
             FromJsonHelper fromJsonHelper, CalendarInstanceRepository calendarInstanceRepository,
             ConfigurationDomainService configurationDomainService, AccountNumberFormatRepositoryWrapper accountNumberFormatRepository,
-            BusinessEventNotifierService businessEventNotifierService) {
+            BusinessEventNotifierService businessEventNotifierService, OfficeScopeValidator officeScopeValidator) {
         return new DepositApplicationProcessWritePlatformServiceJpaRepositoryImpl(context, savingAccountRepository,
                 fixedDepositAccountRepository, recurringDepositAccountRepository, depositAccountAssembler, depositAccountDataValidator,
                 accountNumberGenerator, clientRepository, groupRepository, savingsProductRepository, noteRepository, staffRepository,
                 savingsAccountApplicationTransitionApiJsonValidator, savingsAccountChargeAssembler, accountAssociationsRepository,
                 fromJsonHelper, calendarInstanceRepository, configurationDomainService, accountNumberFormatRepository,
-                businessEventNotifierService);
+                businessEventNotifierService, officeScopeValidator);
     }
 
     @Bean

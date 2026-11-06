@@ -163,6 +163,21 @@ import org.springframework.util.CollectionUtils;
 @Transactional(readOnly = true)
 public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, LoanReadPlatformServiceCommon {
 
+    private static final String LOAN_OFFICE_HIERARCHIES_SQL = """
+            select office.hierarchy
+            from m_loan loan
+            left join m_client client on client.id = loan.client_id
+            left join m_group client_group on client_group.id = loan.group_id
+            join m_office office on office.id = coalesce(client.office_id, client_group.office_id)
+            where loan.id = ?
+            union
+            select transfer_office.hierarchy
+            from m_loan loan
+            join m_client client on client.id = loan.client_id
+            join m_office transfer_office on transfer_office.id = client.transfer_to_office_id
+            where loan.id = ? and client.transfer_to_office_id is not null
+            """;
+
     private final JdbcTemplate jdbcTemplate;
     private final PlatformSecurityContext context;
     private final LoanRepositoryWrapper loanRepositoryWrapper;
@@ -277,6 +292,7 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
             Collection<LoanTransactionRepaymentPeriodData> capitalizedIncomeData, boolean isInterestRecalculationEnabled,
             LoanScheduleType loanScheduleType) {
         this.context.authenticatedUser();
+        validateLoanOfficeScope(loanId);
         return loanRepaymentScheduleService.findLoanScheduleData(loanId, repaymentScheduleRelatedLoanData, disbursementData,
                 capitalizedIncomeData, isInterestRecalculationEnabled, loanScheduleType);
     }
@@ -285,6 +301,7 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
     public Collection<LoanTransactionData> retrieveLoanTransactions(final Long loanId) {
         try {
             this.context.authenticatedUser();
+            validateLoanOfficeScope(loanId);
 
             final LoanTransactionsMapper rm = createLoanTransactionsMapper();
 
@@ -477,6 +494,7 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
     public LoanTransactionData retrieveLoanTransactionTemplate(final Long loanId, final LoanTransactionType transactionType,
             final Long transactionId) {
 
+        validateLoanOfficeScope(loanId);
         LoanTransactionData loanTransactionData = null;
         Collection<PaymentTypeData> paymentOptions = null;
         List<CodeValueData> classificationOptions = null;
@@ -542,6 +560,7 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
     public LoanTransactionData retrieveLoanTransactionTemplate(final Long loanId) {
 
         this.context.authenticatedUser();
+        validateLoanOfficeScope(loanId);
 
         RepaymentTransactionTemplateMapper mapper = new RepaymentTransactionTemplateMapper(sqlGenerator);
         String sql = "select " + mapper.schema();
@@ -557,6 +576,7 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
             LocalDate onDate) {
 
         this.context.authenticatedUser();
+        validateLoanOfficeScope(loanId);
         this.loanUtilService.validateRepaymentTransactionType(repaymentTransactionType);
 
         final Loan loan = this.loanRepositoryWrapper.findOneWithNotFoundDetection(loanId, true);
@@ -693,6 +713,7 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
     @Override
     public LoanTransactionData retrieveLoanTransaction(final Long loanId, final Long transactionId) {
         this.context.authenticatedUser();
+        validateLoanOfficeScope(loanId);
         try {
             final LoanTransactionsMapper rm = createLoanTransactionsMapper();
             final String sql = "select " + rm.loanPaymentsSchema() + " where l.id = ? and tr.id = ? ";
@@ -708,6 +729,7 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
     @Override
     public org.springframework.data.domain.Page<LoanTransactionData> retrieveLoanTransactions(
             @jakarta.validation.constraints.NotNull Long loanId, Set<LoanTransactionType> excludedTransactionTypes, Pageable pageable) {
+        validateLoanOfficeScope(loanId);
         final org.springframework.data.domain.Page<LoanTransaction> transactionPage = loanTransactionRepository
                 .findAll((root, query, builder) -> {
                     List<Predicate> predicates = new ArrayList<>();
@@ -723,6 +745,22 @@ public class LoanReadPlatformServiceImpl implements LoanReadPlatformService, Loa
                 }, pageable);
 
         return transactionPage.map(loanTransactionMapper::mapLoanTransaction);
+    }
+
+    private void validateLoanOfficeScope(final Long loanId) {
+        if (loanId == null) {
+            return;
+        }
+        final String userOfficeHierarchy = this.context.officeHierarchy();
+        if (".".equals(userOfficeHierarchy)) {
+            return;
+        }
+        final List<String> loanOfficeHierarchies = this.jdbcTemplate.queryForList(LOAN_OFFICE_HIERARCHIES_SQL, String.class, loanId,
+                loanId);
+        if (!loanOfficeHierarchies.isEmpty()
+                && loanOfficeHierarchies.stream().noneMatch(hierarchy -> hierarchy.startsWith(userOfficeHierarchy))) {
+            throw new LoanNotFoundException(loanId);
+        }
     }
 
     @Override

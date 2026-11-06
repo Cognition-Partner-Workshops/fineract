@@ -21,7 +21,9 @@ package org.apache.fineract.useradministration.service;
 import jakarta.persistence.PersistenceException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -30,6 +32,7 @@ import org.apache.fineract.infrastructure.core.data.CommandProcessingResult;
 import org.apache.fineract.infrastructure.core.data.CommandProcessingResultBuilder;
 import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
+import org.apache.fineract.infrastructure.security.exception.NoAuthorizationException;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.useradministration.command.PermissionsCommand;
 import org.apache.fineract.useradministration.domain.Permission;
@@ -137,9 +140,12 @@ public class RoleWritePlatformServiceJpaRepositoryImpl implements RoleWritePlatf
     @Transactional
     @Override
     public CommandProcessingResult updateRolePermissions(final Long roleId, final JsonCommand command) {
-        this.context.authenticatedUser();
+        final var authenticatedUser = this.context.authenticatedUser();
 
         final Role role = this.roleRepository.findById(roleId).orElseThrow(() -> new RoleNotFoundException(roleId));
+        if (authenticatedUser.getRoles().stream().anyMatch(userRole -> Objects.equals(userRole.getId(), roleId))) {
+            throw new NoAuthorizationException("User cannot edit permissions for a role they hold");
+        }
 
         final Collection<Permission> allPermissions = this.permissionRepository.findAll();
 
@@ -152,6 +158,12 @@ public class RoleWritePlatformServiceJpaRepositoryImpl implements RoleWritePlatf
             final boolean isSelected = entry.getValue();
 
             final Permission permission = findPermissionByCode(allPermissions, entry.getKey());
+            if (isSelected) {
+                if ("special".equalsIgnoreCase(permission.getGrouping()) && !authenticatedUser.hasAnyPermission("ALL_FUNCTIONS")) {
+                    throw new NoAuthorizationException("Only an ALL_FUNCTIONS user can grant special permissions");
+                }
+                authenticatedUser.validateHasPermissionTo("grant role permission", List.of(permission.getCode()));
+            }
             final boolean changed = role.updatePermission(permission, isSelected);
             if (changed) {
                 changedPermissions.put(entry.getKey(), isSelected);

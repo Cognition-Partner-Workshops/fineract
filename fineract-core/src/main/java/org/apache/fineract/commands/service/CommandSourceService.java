@@ -132,10 +132,9 @@ public class CommandSourceService {
     @Transactional
     public CommandProcessingResult processCommand(NewCommandSourceHandler handler, JsonCommand command, CommandSource commandSource,
             AppUser user, boolean isApprovedByChecker) {
-        final CommandProcessingResult result = handler.processCommand(command);
-
         String permission = commandSource.getPermissionCode();
         boolean isMakerChecker = configurationDomainService.isMakerCheckerEnabledForTask(permission);
+        final CommandProcessingResult result = handler.processCommand(command);
         if (isMakerChecker || result.isRollbackTransaction()) {
             if (isApprovedByChecker || user.isCheckerSuperUser()) {
                 commandSource.markAsChecked(user);

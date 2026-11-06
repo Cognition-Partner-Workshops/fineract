@@ -276,6 +276,10 @@ public class AccountTransferStandingInstruction extends AbstractPersistableCusto
         this.latsRunDate = latsRunDate;
     }
 
+    public AccountTransferDetails accountTransferDetails() {
+        return this.accountTransferDetails;
+    }
+
     public void updateStatus(Integer status) {
         this.status = status;
     }

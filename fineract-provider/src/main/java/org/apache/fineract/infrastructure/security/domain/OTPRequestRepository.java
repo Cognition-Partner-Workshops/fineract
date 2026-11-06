@@ -19,6 +19,7 @@
 package org.apache.fineract.infrastructure.security.domain;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.fineract.infrastructure.security.data.OTPRequest;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,5 +47,24 @@ public class OTPRequestRepository {
 
     public void deleteOTPRequestForUser(AppUser user) {
         OTT_REQUESTS.remove(user.getId());
+    }
+
+    public OTPRequest consumeOTPRequestIfValid(AppUser user, String token, int maxFailedAttempts) {
+        Assert.notNull(user, "User must not be null");
+        Assert.isTrue(maxFailedAttempts > 0, "Maximum failed attempts must be positive");
+
+        AtomicReference<OTPRequest> validRequest = new AtomicReference<>();
+        OTT_REQUESTS.compute(user.getId(), (userId, otpRequest) -> {
+            if (otpRequest == null || !otpRequest.isValid()) {
+                return null;
+            }
+            if (otpRequest.getToken().equalsIgnoreCase(token)) {
+                validRequest.set(otpRequest);
+                return null;
+            }
+            otpRequest.setFailedAttempts(otpRequest.getFailedAttempts() + 1);
+            return otpRequest.getFailedAttempts() >= maxFailedAttempts ? null : otpRequest;
+        });
+        return validRequest.get();
     }
 }

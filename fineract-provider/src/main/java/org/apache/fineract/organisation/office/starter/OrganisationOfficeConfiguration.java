@@ -19,6 +19,7 @@
 package org.apache.fineract.organisation.office.starter;
 
 import org.apache.fineract.infrastructure.core.service.database.DatabaseSpecificSQLGenerator;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.infrastructure.security.utils.ColumnValidator;
 import org.apache.fineract.organisation.monetary.domain.ApplicationCurrencyRepositoryWrapper;
@@ -56,9 +57,9 @@ public class OrganisationOfficeConfiguration {
             OfficeCommandFromApiJsonDeserializer fromApiJsonDeserializer,
             OfficeTransactionCommandFromApiJsonDeserializer moneyTransferCommandFromApiJsonDeserializer,
             OfficeRepositoryWrapper officeRepositoryWrapper, OfficeTransactionRepository officeTransactionRepository,
-            ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository) {
+            ApplicationCurrencyRepositoryWrapper applicationCurrencyRepository, OfficeScopeValidator officeScopeValidator) {
         return new OfficeWritePlatformServiceJpaRepositoryImpl(context, fromApiJsonDeserializer,
                 moneyTransferCommandFromApiJsonDeserializer, officeRepositoryWrapper, officeTransactionRepository,
-                applicationCurrencyRepository);
+                applicationCurrencyRepository, officeScopeValidator);
     }
 }

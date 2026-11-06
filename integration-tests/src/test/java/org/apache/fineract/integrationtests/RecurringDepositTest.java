@@ -249,8 +249,12 @@ public class RecurringDepositTest {
         /***
          * Calculate expected premature closure amount
          */
+        HashMap summaryBeforePrematureCalculation = this.recurringDepositAccountHelper
+                .getRecurringDepositSummary(recurringDepositAccountId);
         HashMap recurringDepositPrematureData = this.recurringDepositAccountHelper
                 .calculatePrematureAmountForRecurringDeposit(recurringDepositAccountId, CLOSED_ON_DATE);
+        Assertions.assertEquals(summaryBeforePrematureCalculation,
+                this.recurringDepositAccountHelper.getRecurringDepositSummary(recurringDepositAccountId));
 
         /***
          * Preclose the RD account verify whether account is preClosed

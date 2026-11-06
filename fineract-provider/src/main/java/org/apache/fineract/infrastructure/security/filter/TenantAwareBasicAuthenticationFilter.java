@@ -40,6 +40,7 @@ import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
 import org.apache.fineract.infrastructure.security.data.PlatformRequestLog;
 import org.apache.fineract.infrastructure.security.exception.InvalidTenantIdentifierException;
 import org.apache.fineract.infrastructure.security.service.AuthTenantDetailsService;
+import org.apache.fineract.infrastructure.security.vote.SelfServiceUserAuthorizationManager;
 import org.apache.fineract.notification.service.UserNotificationService;
 import org.apache.fineract.useradministration.domain.AppUser;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -179,8 +180,7 @@ public class TenantAwareBasicAuthenticationFilter extends BasicAuthenticationFil
             response.addHeader("X-Notification-Refresh", "false");
         }
 
-        String pathURL = request.getRequestURI();
-        boolean isSelfServiceRequest = pathURL != null && pathURL.contains("/self/");
+        boolean isSelfServiceRequest = SelfServiceUserAuthorizationManager.isSelfServiceRequest(request);
 
         boolean notAllowed = (isSelfServiceRequest && !user.isSelfServiceUser()) || (!isSelfServiceRequest && user.isSelfServiceUser());
 

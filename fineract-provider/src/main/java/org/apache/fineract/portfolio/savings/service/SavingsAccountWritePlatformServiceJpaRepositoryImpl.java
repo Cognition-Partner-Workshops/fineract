@@ -121,6 +121,7 @@ import org.apache.fineract.portfolio.savings.exception.PostInterestAsOnDateExcep
 import org.apache.fineract.portfolio.savings.exception.PostInterestAsOnDateException.PostInterestAsOnExceptionType;
 import org.apache.fineract.portfolio.savings.exception.PostInterestClosingDateException;
 import org.apache.fineract.portfolio.savings.exception.SavingsAccountClosingNotAllowedException;
+import org.apache.fineract.portfolio.savings.exception.SavingsAccountNotFoundException;
 import org.apache.fineract.portfolio.savings.exception.SavingsAccountTransactionNotFoundException;
 import org.apache.fineract.portfolio.savings.exception.SavingsOfficerAssignmentException;
 import org.apache.fineract.portfolio.savings.exception.SavingsOfficerUnassignmentException;
@@ -263,7 +264,25 @@ public class SavingsAccountWritePlatformServiceJpaRepositoryImpl implements Savi
     @Transactional
     @Override
     public CommandProcessingResult gsimDeposit(final Long gsimId, final JsonCommand command) {
-        JsonArray savingsArray = command.arrayOfParameterNamed("savingsArray");
+        final JsonArray savingsArray = command.arrayOfParameterNamed("savingsArray");
+        final Set<Long> childSavingsAccountIds = new HashSet<>();
+        for (SavingsAccount childSavingsAccount : this.savingAccountRepositoryWrapper.findByGsimId(gsimId)) {
+            childSavingsAccountIds.add(childSavingsAccount.getId());
+        }
+        final boolean legacyGroupSavingsAccount;
+        if (childSavingsAccountIds.isEmpty()) {
+            final SavingsAccount account = this.savingAccountRepositoryWrapper.findOneWithNotFoundDetection(gsimId);
+            legacyGroupSavingsAccount = account.getGroupId() != null && account.getGsim() == null;
+        } else {
+            legacyGroupSavingsAccount = false;
+        }
+
+        for (JsonElement element : savingsArray) {
+            final Long childAccountId = element.getAsJsonObject().get("childAccountId").getAsLong();
+            if (!childSavingsAccountIds.contains(childAccountId) && !(legacyGroupSavingsAccount && gsimId.equals(childAccountId))) {
+                throw new SavingsAccountNotFoundException(childAccountId);
+            }
+        }
 
         CommandProcessingResult result = null;
         for (JsonElement element : savingsArray) {

@@ -23,9 +23,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 import jakarta.persistence.PersistenceException;
 import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -44,6 +47,7 @@ import org.apache.fineract.infrastructure.core.exception.ErrorHandler;
 import org.apache.fineract.infrastructure.core.exception.PlatformApiDataValidationException;
 import org.apache.fineract.infrastructure.core.exception.PlatformDataIntegrityException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
+import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.GmailBackedPlatformEmailService;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessage;
 import org.apache.fineract.infrastructure.sms.domain.SmsMessageRepository;
@@ -213,8 +217,9 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
     }
 
     public static String randomAuthorizationTokenGeneration() {
-        Integer randomPIN = (int) (secureRandom.nextDouble() * 9000) + 1000;
-        return randomPIN.toString();
+        byte[] tokenBytes = new byte[16];
+        secureRandom.nextBytes(tokenBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
     }
 
     @Override
@@ -242,9 +247,22 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
                 throw new PlatformApiDataValidationException(dataValidationErrors);
             }
 
-            SelfServiceRegistration selfServiceRegistration = this.selfServiceRegistrationRepository
-                    .getRequestByIdAndAuthenticationToken(id, authenticationToken);
+            SelfServiceRegistration selfServiceRegistration = this.selfServiceRegistrationRepository.findById(id).orElse(null);
             if (selfServiceRegistration == null) {
+                throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
+            }
+            if (selfServiceRegistration.getAuthenticationToken() == null) {
+                throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
+            }
+            if (selfServiceRegistration.isAuthenticationTokenExpired(DateUtils.getLocalDateTimeOfSystem())) {
+                selfServiceRegistration.invalidateAuthenticationToken();
+                this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
+                throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
+            }
+            if (!MessageDigest.isEqual(selfServiceRegistration.getAuthenticationToken().getBytes(StandardCharsets.UTF_8),
+                    authenticationToken.getBytes(StandardCharsets.UTF_8))) {
+                selfServiceRegistration.recordFailedAuthenticationTokenAttempt();
+                this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
                 throw new SelfServiceRegistrationNotFoundException(id, authenticationToken);
             }
             username = selfServiceRegistration.getUsername();
@@ -265,6 +283,8 @@ public class SelfServiceRegistrationWritePlatformServiceImpl implements SelfServ
             AppUser appUser = new AppUser(client.getOffice(), user, allRoles, selfServiceRegistration.getEmail(), client.getFirstname(),
                     client.getLastname(), null, passwordNeverExpire, isSelfServiceUser, clients, null);
             this.userDomainService.create(appUser, true);
+            selfServiceRegistration.invalidateAuthenticationToken();
+            this.selfServiceRegistrationRepository.saveAndFlush(selfServiceRegistration);
             return appUser;
 
         } catch (final JpaSystemException | DataIntegrityViolationException dve) {

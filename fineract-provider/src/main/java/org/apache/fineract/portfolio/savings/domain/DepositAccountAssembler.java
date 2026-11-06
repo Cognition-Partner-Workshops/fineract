@@ -70,6 +70,7 @@ import org.apache.fineract.infrastructure.core.exception.InvalidJsonException;
 import org.apache.fineract.infrastructure.core.exception.UnsupportedParameterException;
 import org.apache.fineract.infrastructure.core.serialization.FromJsonHelper;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
+import org.apache.fineract.infrastructure.security.service.OfficeScopeValidator;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.organisation.staff.domain.Staff;
 import org.apache.fineract.organisation.staff.domain.StaffRepositoryWrapper;
@@ -120,6 +121,7 @@ public class DepositAccountAssembler {
     private final PaymentDetailAssembler paymentDetailAssembler;
 
     private final ExternalIdFactory externalIdFactory;
+    private final OfficeScopeValidator officeScopeValidator;
 
     @Autowired
     public DepositAccountAssembler(final SavingsAccountTransactionSummaryWrapper savingsAccountTransactionSummaryWrapper,
@@ -130,7 +132,8 @@ public class DepositAccountAssembler {
             final DepositProductAssembler depositProductAssembler,
             final RecurringDepositProductRepository recurringDepositProductRepository,
             final AccountTransfersReadPlatformService accountTransfersReadPlatformService, final PlatformSecurityContext context,
-            final PaymentDetailAssembler paymentDetailAssembler, ExternalIdFactory externalIdFactory) {
+            final PaymentDetailAssembler paymentDetailAssembler, ExternalIdFactory externalIdFactory,
+            final OfficeScopeValidator officeScopeValidator) {
 
         this.savingsAccountTransactionSummaryWrapper = savingsAccountTransactionSummaryWrapper;
         this.clientRepository = clientRepository;
@@ -146,6 +149,7 @@ public class DepositAccountAssembler {
         this.context = context;
         this.paymentDetailAssembler = paymentDetailAssembler;
         this.externalIdFactory = externalIdFactory;
+        this.officeScopeValidator = officeScopeValidator;
     }
 
     /**
@@ -179,6 +183,7 @@ public class DepositAccountAssembler {
         AccountType accountType = AccountType.INVALID;
         final Long clientId = this.fromApiJsonHelper.extractLongNamed(clientIdParamName, element);
         if (clientId != null) {
+            officeScopeValidator.validateClient(clientId);
             final boolean isCalendarInherited = command.booleanPrimitiveValueOfParameterNamed(isCalendarInheritedParamName);
             client = this.clientRepository.findOneWithNotFoundDetection(clientId, isCalendarInherited); // we
                                                                                                         // need
@@ -196,6 +201,7 @@ public class DepositAccountAssembler {
 
         final Long groupId = this.fromApiJsonHelper.extractLongNamed(groupIdParamName, element);
         if (groupId != null) {
+            officeScopeValidator.validateGroup(groupId);
             group = this.groupRepository.findOneWithNotFoundDetection(groupId);
             accountType = AccountType.GROUP;
         }
@@ -322,7 +328,7 @@ public class DepositAccountAssembler {
         SavingsAccount account = null;
         if (depositAccountType.isFixedDeposit()) {
             final DepositProductTermAndPreClosure prodTermAndPreClosure = ((FixedDepositProduct) product).depositProductTermAndPreClosure();
-            final DepositAccountTermAndPreClosure accountTermAndPreClosure = this.assembleAccountTermAndPreClosure(command,
+            final DepositAccountTermAndPreClosure accountTermAndPreClosure = this.assembleAccountTermAndPreClosure(command, client, group,
                     prodTermAndPreClosure);
 
             FixedDepositAccount fdAccount = FixedDepositAccount.createNewApplicationForSubmittal(client, group, product, fieldOfficer,
@@ -336,7 +342,7 @@ public class DepositAccountAssembler {
         } else if (depositAccountType.isRecurringDeposit()) {
             final DepositProductTermAndPreClosure prodTermAndPreClosure = ((RecurringDepositProduct) product)
                     .depositProductTermAndPreClosure();
-            final DepositAccountTermAndPreClosure accountTermAndPreClosure = this.assembleAccountTermAndPreClosure(command,
+            final DepositAccountTermAndPreClosure accountTermAndPreClosure = this.assembleAccountTermAndPreClosure(command, client, group,
                     prodTermAndPreClosure);
 
             final DepositProductRecurringDetail prodRecurringDetail = ((RecurringDepositProduct) product).depositRecurringDetail();
@@ -364,6 +370,7 @@ public class DepositAccountAssembler {
     }
 
     public SavingsAccount assembleFrom(final Long savingsId, DepositAccountType depositAccountType) {
+        officeScopeValidator.validateSavings(savingsId);
         final SavingsAccount account = this.savingsAccountRepository.findOneWithNotFoundDetection(savingsId, depositAccountType);
         account.setHelpers(this.savingsAccountTransactionSummaryWrapper, this.savingsHelper);
         return account;
@@ -373,8 +380,8 @@ public class DepositAccountAssembler {
         savingsAccount.setHelpers(this.savingsAccountTransactionSummaryWrapper, this.savingsHelper);
     }
 
-    public DepositAccountTermAndPreClosure assembleAccountTermAndPreClosure(final JsonCommand command,
-            final DepositProductTermAndPreClosure productTermAndPreclosure) {
+    public DepositAccountTermAndPreClosure assembleAccountTermAndPreClosure(final JsonCommand command, final Client client,
+            final Group group, final DepositProductTermAndPreClosure productTermAndPreclosure) {
         final DepositPreClosureDetail productPreClosure = (productTermAndPreclosure == null) ? null
                 : productTermAndPreclosure.depositPreClosureDetail();
         final DepositTermDetail productTerm = (productTermAndPreclosure == null) ? null : productTermAndPreclosure.depositTermDetail();
@@ -400,6 +407,8 @@ public class DepositAccountAssembler {
                 ? DepositAccountOnClosureType.fromInt(accountOnClosureTypeId)
                 : null;
         final Long transferToSavingsId = command.longValueOfParameterNamed(transferToSavingsIdParamName);
+        officeScopeValidator.validateSavingsHasSameOwner(transferToSavingsId, client == null ? null : client.getId(),
+                group == null ? null : group.getId());
         return DepositAccountTermAndPreClosure.createNew(updatedProductPreClosure, updatedProductTerm, account, depositAmount,
                 maturityAmount, maturityDate, depositPeriod, depositPeriodFrequency, expectedFirstDepositOnDate, accountOnClosureType,
                 trasferInterest, transferToSavingsId);

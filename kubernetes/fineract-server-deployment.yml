@@ -31,7 +31,7 @@ spec:
   selector:
     app: fineract-server
     tier: backend
-  type: LoadBalancer
+  type: ClusterIP
 
 ---
 
